@@ -1,0 +1,37 @@
+{
+  app: {
+    signingConfigs: [],   // 用 DevEco Studio 打开项目后自动生成调试签名
+    ],
+    products: [
+      {
+        name: 'default',
+        compatibleSdkVersion: '5.0.0(12)',
+        targetSdkVersion: '26.0.0',
+        runtimeOS: 'HarmonyOS',
+        signingConfig: 'default',
+      },
+    ],
+    buildModeSet: [
+      {
+        name: 'debug',
+      },
+      {
+        name: 'release',
+      },
+    ],
+  },
+  modules: [
+    {
+      name: 'entry',
+      srcPath: './entry',
+      targets: [
+        {
+          name: 'default',
+          applyToProducts: [
+            'default',
+          ],
+        },
+      ],
+    },
+  ],
+}

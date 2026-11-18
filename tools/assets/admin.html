@@ -1,0 +1,927 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>PC 遥控器 · 控制台</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F4F6FB; --card:#FFFFFF; --line:#E4E9F3; --line2:#F0F3F9;
+  --tx:#1B1F2A; --tx2:#5A6474; --tx3:#9AA3B2;
+  --pri:#2E6BE6; --pri-d:#2558C4; --ok:#16A34A; --warn:#E0A21A; --bad:#DC3B3B;
+  --shadow:0 1px 2px rgba(24,39,75,.04),0 8px 24px rgba(24,39,75,.06);
+  --mono:Consolas,"Cascadia Mono",monospace;
+}
+body{font-family:"Microsoft YaHei UI","Segoe UI",sans-serif;background:var(--bg);color:var(--tx);
+  font-size:13.5px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{display:flex;min-height:100vh}
+
+/* 侧栏 */
+aside{width:196px;flex:none;background:#fff;border-right:1px solid var(--line);
+  display:flex;flex-direction:column;padding:18px 12px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:9px;padding:0 8px 16px}
+.logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#3D7BF5,#2E6BE6);
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex:none}
+.brand b{font-size:14px;font-weight:600;letter-spacing:.2px}
+.brand span{display:block;font-size:11px;color:var(--tx3);font-weight:400;margin-top:-2px}
+nav{display:flex;flex-direction:column;gap:2px}
+.nav{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:9px;cursor:pointer;
+  color:var(--tx2);font-size:13px;user-select:none;transition:.15s}
+.nav:hover{background:#F5F7FC;color:var(--tx)}
+.nav.on{background:#EDF2FE;color:var(--pri);font-weight:600}
+.nav i{width:16px;text-align:center;font-style:normal;font-size:14px;opacity:.9}
+.side-foot{margin-top:auto;font-size:11px;color:var(--tx3);padding:10px 8px 0;line-height:1.7;
+  border-top:1px solid var(--line2)}
+.side-foot b{color:var(--tx2);font-weight:500}
+
+/* 主区 */
+main{flex:1;min-width:0;padding:22px 26px 40px}
+.top{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.top h1{font-size:19px;font-weight:600;letter-spacing:.2px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 10px;border-radius:99px;
+  background:#F1F3F8;color:var(--tx2)}
+.pill.on{background:#E7F7ED;color:#128040}
+.pill.off{background:#F2F4F8;color:#7A8496}
+.pill.dry{background:#FFF6E0;color:#9A6B00}
+.dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+.spacer{flex:1}
+
+.btn{border:1px solid var(--line);background:#fff;color:var(--tx);font-size:13px;
+  padding:7px 14px;border-radius:9px;cursor:pointer;font-family:inherit;transition:.15s;white-space:nowrap}
+.btn:hover{border-color:#C9D4E8;background:#FAFBFE}
+.btn.pri{background:var(--pri);border-color:var(--pri);color:#fff}
+.btn.pri:hover{background:var(--pri-d)}
+.btn.danger{color:var(--bad);border-color:#F2D3D3}
+.btn.danger:hover{background:#FEF5F5}
+.btn.sm{padding:5px 10px;font-size:12px;border-radius:8px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:360px 1fr}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow)}
+.card h2{font-size:13px;font-weight:600;color:var(--tx2);margin-bottom:12px;letter-spacing:.3px;
+  display:flex;align-items:center;gap:7px}
+.card h2 .more{margin-left:auto;font-weight:400;font-size:12px;color:var(--tx3)}
+
+/* 二维码卡 */
+.qrbox{text-align:center}
+.qrbox img{width:190px;height:190px;border-radius:12px;border:1px solid var(--line);background:#fff;padding:6px}
+.qrinfo{margin-top:12px;font-size:12px}
+.qrinfo .row{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px solid var(--line2)}
+.qrinfo .k{color:var(--tx3);flex:none}
+.qrinfo .v{font-family:var(--mono);word-break:break-all;text-align:right;color:var(--tx)}
+.qrinfo .row:first-child{border-top:0}
+.qrbtns{display:flex;gap:8px;margin-top:12px}
+.qrbtns .btn{flex:1}
+
+/* 状态数值 */
+.kv{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.kv .item{background:#FAFBFE;border:1px solid var(--line2);border-radius:11px;padding:11px 12px}
+.kv .lb{font-size:11.5px;color:var(--tx3);margin-bottom:3px}
+.kv .vl{font-size:17px;font-weight:600;letter-spacing:.3px}
+.kv .vl small{font-size:11px;font-weight:400;color:var(--tx3);margin-left:2px}
+.kv .vl.ok{color:var(--ok)}.kv .vl.bad{color:var(--bad)}
+
+.info{display:grid;grid-template-columns:repeat(2,1fr);gap:0 18px;margin-top:14px}
+.info .row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--line2);font-size:12.5px}
+.info .k{color:var(--tx3)}
+.info .v{font-family:var(--mono);color:var(--tx);text-align:right;word-break:break-all}
+
+/* 表格 */
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl th{text-align:left;font-weight:500;color:var(--tx3);font-size:11.5px;padding:7px 8px;
+  border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff}
+.tbl td{padding:7px 8px;border-bottom:1px solid var(--line2);vertical-align:top}
+.tbl tr:hover td{background:#FAFBFE}
+.tbl .t{font-family:var(--mono);color:var(--tx3);white-space:nowrap;width:64px}
+.tbl .a{font-family:var(--mono);color:var(--pri);white-space:nowrap}
+.tbl .d{color:var(--tx2);font-family:var(--mono);font-size:11.5px;word-break:break-all}
+.scroll{max-height:520px;overflow:auto;margin:0 -4px}
+.empty{text-align:center;color:var(--tx3);padding:38px 0;font-size:12.5px}
+
+/* 语音记录 */
+.vitem{border:1px solid var(--line2);border-radius:11px;padding:11px 13px;margin-bottom:9px;background:#FCFDFF}
+.vitem.bad{border-color:#F6DCDC;background:#FFFCFC}
+.vhead{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--tx3);margin-bottom:5px}
+.vtext{font-size:14px;font-weight:600;margin-bottom:5px;word-break:break-all}
+.vsteps{font-family:var(--mono);font-size:12px;color:var(--pri);margin-bottom:4px;word-break:break-all}
+.vsay{font-size:12.5px;color:var(--tx2)}
+.vsay b{color:var(--tx);font-weight:500}
+.tag{font-size:11px;padding:1px 7px;border-radius:99px;background:#E7F7ED;color:#128040}
+.tag.bad{background:#FDECEC;color:#B62F2F}
+
+/* 设置 */
+.set{max-width:760px}
+.setrow{display:flex;align-items:center;gap:14px;padding:13px 0;border-bottom:1px solid var(--line2)}
+.setrow:last-child{border-bottom:0}
+.setrow .txt{flex:1;min-width:0}
+.setrow .nm{font-size:13.5px;margin-bottom:1px}
+.setrow .ds{font-size:11.5px;color:var(--tx3);line-height:1.6}
+.sw{width:40px;height:23px;border-radius:99px;background:#D7DDEA;position:relative;cursor:pointer;
+  flex:none;transition:.18s}
+.sw::after{content:"";position:absolute;top:2.5px;left:2.5px;width:18px;height:18px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.18);transition:.18s}
+.sw.on{background:var(--pri)}
+.sw.on::after{left:19.5px}
+input.num{width:86px;padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-family:var(--mono);
+  font-size:13px;text-align:center;color:var(--tx)}
+select.opt{padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px;background:#fff}
+.sticky{position:sticky;bottom:-40px;background:linear-gradient(180deg,rgba(244,246,251,0),var(--bg) 40%);
+  padding:16px 0 0;display:flex;gap:10px;align-items:center}
+.toast{position:fixed;left:50%;bottom:32px;transform:translate(-50%,16px);background:#1F2632;color:#fff;
+  padding:9px 18px;border-radius:10px;font-size:13px;opacity:0;transition:.22s;pointer-events:none;z-index:9}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.hide{display:none!important}
+.warn{display:flex;align-items:center;gap:12px;background:#FFF7E6;border:1px solid #F3E0B0;
+  color:#8A6400;border-radius:11px;padding:10px 14px;font-size:12.5px;margin-bottom:14px;line-height:1.6}
+.warn span{flex:1}
+.appgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;max-height:560px;overflow:auto}
+.appitem{display:flex;align-items:center;gap:9px;padding:9px 10px;border:1px solid var(--line2);border-radius:10px;
+  font-size:12.5px;background:#FCFDFF;overflow:hidden}
+.av{width:26px;height:26px;border-radius:8px;flex:none;display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:12px;font-weight:600}
+.appitem span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <aside>
+    <div class="brand">
+      <div class="logo">⌘</div>
+      <div><b>PC 遥控器</b><span>电脑端控制台</span></div>
+    </div>
+    <nav>
+      <div class="nav on" data-tab="home" data-label="概览"><i>◎</i>概览</div>
+      <div class="nav" data-tab="keys" data-label="按键记录"><i>⌨</i>按键记录</div>
+      <div class="nav" data-tab="voice" data-label="语音记录"><i>◍</i>语音记录</div>
+      <div class="nav" data-tab="custom" data-label="自定义指令"><i>✦</i>自定义指令</div>
+      <div class="nav" data-tab="apps" data-label="应用列表"><i>▤</i>应用列表</div>
+      <div class="nav" data-tab="dev" data-label="已配对设备"><i>⌸</i>已配对设备</div>
+      <div class="nav" data-tab="set" data-label="设置"><i>⚙</i>设置</div>
+    </nav>
+    <div class="side-foot">
+      <div>服务端口 <b id="fPort">—</b></div>
+      <div>本机界面 <b id="fAdmin">—</b></div>
+      <div style="margin-top:6px;color:#B9C0CE">仅本机可访问</div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="top">
+      <h1 id="pageTitle">概览</h1>
+      <span class="pill" id="stPill"><span class="dot"></span><span id="stText">检测中</span></span>
+      <span class="pill hide" id="dryPill">安全模式</span>
+      <div class="spacer"></div>
+      <button class="btn" id="btnQR">显示二维码</button>
+      <button class="btn pri" id="btnSvc">启动服务</button>
+    </div>
+
+    <!-- 概览 -->
+    <section id="tab-home">
+      <div class="warn hide" id="updWarn" style="background:#F0F6FF;border-color:#C7DCFA;color:#1D4ED8">
+        <span id="updText"></span>
+        <button class="btn sm pri" id="updGo">去下载</button>
+      </div>
+      <div class="warn hide" id="fwWarn">
+        <span id="fwText">⚠ 未发现 Windows 防火墙放行规则，手机可能连不上。</span>
+        <button class="btn sm" id="fwFix">一键放行</button>
+      </div>
+      <div class="warn hide" id="secWarn">
+        <span>⚠ 现在同一局域网里任何设备都能控制这台电脑（不需要配对）。装好新版手机 App 后建议开启「只允许已配对设备」。</span>
+        <button class="btn sm" id="secFix">立即开启</button>
+      </div>
+      <div class="grid g2">
+        <div class="card qrbox">
+          <h2>手机扫码配对</h2>
+          <img id="qrImg" alt="配对二维码">
+          <div class="qrinfo">
+            <div class="row"><span class="k">电脑名</span><span class="v" id="fName">—</span></div>
+            <div class="row"><span class="k">局域网地址</span><span class="v" id="fAddr">—</span></div>
+            <div class="row"><span class="k">配对码</span><span class="v" id="fLink" style="font-size:11px">—</span></div>
+          </div>
+          <div class="qrbtns">
+            <button class="btn" id="btnCopy">复制配对码</button>
+            <button class="btn" id="btnPage">配对页</button>
+          </div>
+        </div>
+
+        <div class="grid" style="gap:14px">
+          <div class="card">
+            <h2>运行状态 <span class="more" id="fUptime"></span></h2>
+            <div class="kv">
+              <div class="item"><div class="lb">手机指令</div><div class="vl" id="sKey">0</div></div>
+              <div class="item"><div class="lb">执行失败</div><div class="vl" id="sFail">0</div></div>
+              <div class="item"><div class="lb">语音句数</div><div class="vl" id="sVoice">0</div></div>
+              <div class="item"><div class="lb">未识别</div><div class="vl" id="sMiss">0</div></div>
+            </div>
+            <div class="info">
+              <div class="row"><span class="k">服务端口</span><span class="v" id="iPort">—</span></div>
+              <div class="row"><span class="k">运行模式</span><span class="v" id="iMode">—</span></div>
+              <div class="row"><span class="k">应用数量</span><span class="v" id="iApps">—</span></div>
+              <div class="row"><span class="k">NeoShell</span><span class="v" id="iNeo">—</span></div>
+              <div class="row"><span class="k">网卡 MAC</span><span class="v" id="iMac">—</span></div>
+              <div class="row"><span class="k">在线设备</span><span class="v" id="iOnline">—</span></div>
+              <div class="row"><span class="k">最近活动</span><span class="v" id="iLast">—</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <h2>最近操作</h2>
+            <div class="scroll" style="max-height:250px">
+              <table class="tbl"><tbody id="miniRows"><tr><td class="empty">暂无记录</td></tr></tbody></table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h2>试一试 <span class="more">和手机说语音走同一条解析路径，会真的执行</span></h2>
+        <div style="display:flex;gap:8px">
+          <input id="tryText" placeholder="例如：打开计算器然后静音 · 把屏幕关掉 · 搜一下卫生监督执法"
+            style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:13px;color:var(--tx)">
+          <button class="btn pri" id="tryBtn">发送</button>
+        </div>
+        <div id="tryOut" style="margin-top:10px;font-size:12.5px;color:var(--tx3);min-height:22px;line-height:1.7"></div>
+      </div>
+    </section>
+
+    <!-- 按键记录 -->
+    <section id="tab-keys" class="hide">
+      <div class="card">
+        <h2>按键 / 动作记录 <span class="more"><span id="keyCount">0</span> 条 · 每 2 秒刷新</span></h2>
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <button class="btn sm" id="keyPause">暂停刷新</button>
+          <button class="btn sm" id="keyExport">导出</button>
+          <button class="btn sm danger" id="keyClear">清空</button>
+        </div>
+        <div class="scroll">
+          <table class="tbl">
+            <thead><tr><th class="t">时间</th><th style="width:150px">动作</th><th style="width:60px">结果</th><th>详情</th></tr></thead>
+            <tbody id="keyRows"><tr><td colspan="4" class="empty">暂无记录，手机操作后这里会出现</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 语音记录 -->
+    <section id="tab-voice" class="hide">
+      <div class="card">
+        <h2>语音记录 <span class="more"><span id="voiceCount">0</span> 条 · 原话与解析结果</span></h2>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <button class="btn sm" id="voicePause">暂停刷新</button>
+          <button class="btn sm" id="voiceExport">导出</button>
+          <button class="btn sm danger" id="voiceClear">清空</button>
+        </div>
+        <div class="scroll" style="max-height:600px"><div id="voiceList"><div class="empty">还没有语音指令</div></div></div>
+      </div>
+    </section>
+
+    <!-- 自定义语音指令 -->
+    <section id="tab-custom" class="hide">
+      <div class="card">
+        <h2>自定义指令 <span class="more">说一句话触发一串动作 · 命中优先级高于内置指令 · 保存即生效</span></h2>
+        <div id="customList" style="display:flex;flex-direction:column;gap:8px"><div class="empty">加载中…</div></div>
+        <div style="margin-top:12px"><button class="btn pri" id="customAdd">＋ 新建指令</button></div>
+      </div>
+      <div class="card hide" id="customEditor" style="margin-top:14px">
+        <h2 id="customEditorTitle">新建指令</h2>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+          <div style="display:flex;gap:8px;align-items:center"><span style="width:64px;font-size:12.5px;color:var(--tx3);flex:none">触发短语</span>
+            <input id="cPhrase" placeholder="例如：开始上课（≤20 字，说这句就触发）" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:13px;color:var(--tx)"></div>
+          <div style="display:flex;gap:8px;align-items:center"><span style="width:64px;font-size:12.5px;color:var(--tx3);flex:none">别名</span>
+            <input id="cAlias" placeholder="逗号分隔：上课了,开始讲课（可空）" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:13px;color:var(--tx)"></div>
+          <div style="display:flex;gap:8px;align-items:center"><span style="width:64px;font-size:12.5px;color:var(--tx3);flex:none">回话</span>
+            <input id="cSay" placeholder="执行完回给手机的话：好的，开始上课（可空）" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:13px;color:var(--tx)"></div>
+        </div>
+        <div style="margin:12px 0 6px;font-size:12.5px;color:var(--tx3)">动作步骤（按顺序执行，最多 8 步）</div>
+        <div id="cSteps" style="display:flex;flex-direction:column;gap:6px"></div>
+        <div style="margin-top:8px"><button class="btn sm" id="cStepAdd">＋ 加一步</button></div>
+        <div class="sticky" style="margin-top:14px">
+          <button class="btn pri" id="cSave">保存</button>
+          <button class="btn" id="cCancel">取消</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 应用 -->
+    <section id="tab-apps" class="hide">
+      <div class="card">
+        <h2>应用列表 <span class="more"><span id="appCount">0</span> 个 · 手机端宫格的数据源</span></h2>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input class="num" style="width:220px;text-align:left" id="appSearch" placeholder="搜索应用名">
+          <button class="btn sm" id="appRescan">重新扫描</button>
+        </div>
+        <div class="appgrid" id="appList"><div class="empty">点「重新扫描」加载</div></div>
+      </div>
+    </section>
+
+    <!-- 已配对设备 -->
+    <section id="tab-dev" class="hide">
+      <div class="card set">
+        <h2>访问控制</h2>
+        <div class="setrow">
+          <div class="txt"><div class="nm">只允许已配对设备</div>
+            <div class="ds">开启后，局域网里没有令牌的请求一律拒绝（HTTP 401）。手机需要重新扫码才会拿到令牌；本机控制台不受影响。</div></div>
+          <div class="sw" data-k="require_token"></div>
+        </div>
+        <div class="setrow">
+          <div class="txt"><div class="nm">重置配对票据</div>
+            <div class="ds">换新票据并清空下面整张列表，所有手机都得重新扫码。换手机、或怀疑二维码被拍走时用。</div></div>
+          <button class="btn sm danger" id="btnResetTicket">重置</button>
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h2>已配对设备 <span class="more"><span id="devCount">0</span> 台 · 上限 12 台</span></h2>
+        <div class="scroll">
+          <table class="tbl">
+            <thead><tr><th>设备</th><th style="width:130px">IP</th><th style="width:70px">请求数</th>
+              <th style="width:80px">最后活动</th><th style="width:120px">操作</th></tr></thead>
+            <tbody id="devRows"><tr><td colspan="5" class="empty">加载中…</td></tr></tbody>
+          </table>
+        </div>
+        <div style="margin-top:10px;font-size:11.5px;color:var(--tx3);line-height:1.8">
+          手机上「主页顶部电脑名 → ＋ 扫码配对新电脑」扫一次即自动登记；换手机后重新扫即可。踢掉的手机立刻连不上，需要重新扫码。
+        </div>
+      </div>
+    </section>
+
+    <!-- 设置 -->
+    <section id="tab-set" class="hide">
+      <div class="card set">
+        <h2>启动与运行</h2>
+        <div class="setrow">
+          <div class="txt"><div class="nm">开机自动启动</div>
+            <div class="ds">写入当前用户的启动项（注册表 Run），不需要管理员权限。启动后直接在托盘待命。</div></div>
+          <div class="sw" data-k="autostart"></div>
+        </div>
+        <div class="setrow">
+          <div class="txt"><div class="nm">启动时隐藏控制台窗口</div>
+            <div class="ds">双击 exe 后只在右下角托盘出现，不弹黑色命令行窗口。排查问题时可临时关掉。</div></div>
+          <div class="sw" data-k="start_hidden"></div>
+        </div>
+        <div class="setrow">
+          <div class="txt"><div class="nm">安全模式（只记录不执行）</div>
+            <div class="ds">所有动作只写记录、不真正按键。第一次在新电脑上试可以开着。</div></div>
+          <div class="sw" data-k="dry"></div>
+        </div>
+        <div class="setrow">
+          <div class="txt"><div class="nm">允许关机 / 重启 / 睡眠</div>
+            <div class="ds">关掉后手机仍能关屏、锁屏，但电源菜单的关机/重启/睡眠会被拒绝，防误触。</div></div>
+          <div class="sw" data-k="allow_power"></div>
+        </div>
+        <div class="setrow">
+          <div class="txt"><div class="nm">全局热键</div>
+            <div class="ds">Ctrl+Alt+Q 弹出配对二维码，Ctrl+Alt+S 启停遥控服务。任何程序在前台都能用；改完重启程序生效。</div></div>
+          <div class="sw" data-k="hotkeys"></div>
+        </div>
+        <div class="setrow">
+          <div class="txt"><div class="nm">语音回话</div>
+            <div class="ds">执行完给手机回一句「正在打开微信」之类的提示。关掉则只执行不吭声。</div></div>
+          <div class="sw" data-k="voice_reply"></div>
+        </div>
+        <div class="setrow">
+          <div class="txt"><div class="nm">语音 LLM 兜底</div>
+            <div class="ds">本地规则没听懂时，把话交给大模型拆成动作再执行（联网，约 2-5 秒）。口述文字、闲聊不受影响。默认关。</div></div>
+          <div class="sw" data-k="llm_fallback"></div>
+        </div>
+      </div>
+
+      <div class="card set" style="margin-top:14px">
+        <h2>版本与更新 <span class="more" id="updVer">—</span></h2>
+        <div class="setrow">
+          <div class="txt"><div class="nm">启动时检查更新</div>
+            <div class="ds">启动 8 秒后后台查一次 GitHub，有新版本只在控制台和托盘气泡提示，不会自动下载安装。</div></div>
+          <div class="sw" data-k="update_check"></div>
+        </div>
+        <div class="setrow" style="display:block">
+          <div class="txt" style="margin-bottom:8px"><div class="nm">GitHub 仓库</div>
+            <div class="ds">形如 yourname/pc-remote。优先读仓库的 Releases（取最新 tag），没有 Release 时读仓库根目录的 version.json。改完点「保存仓库」。</div></div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input id="repoInput" placeholder="yourname/pc-remote" style="flex:1;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;color:var(--tx);background:#FCFDFF">
+            <button class="btn" id="repoSave">保存仓库</button>
+            <button class="btn pri" id="updCheck">检查更新</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card set" style="margin-top:14px">
+        <h2>记录</h2>
+        <div class="setrow">
+          <div class="txt"><div class="nm">记录同时写入文件</div>
+            <div class="ds">在 exe 同目录 logs\ 下按天存 key-*.log / voice-*.log，方便事后翻查。</div></div>
+          <div class="sw" data-k="save_log"></div>
+        </div>
+        <div class="setrow">
+          <div class="txt"><div class="nm">内存保留条数</div>
+            <div class="ds">界面里最多显示多少条，超出自动丢弃最早的。不影响落盘文件。</div></div>
+          <select class="opt" id="setLimit">
+            <option value="200">200 条</option>
+            <option value="500">500 条</option>
+            <option value="1000">1000 条</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card set" style="margin-top:14px">
+        <h2>网络</h2>
+        <div class="setrow">
+          <div class="txt"><div class="nm">遥控服务端口</div>
+            <div class="ds">手机连的端口，默认 8765。改了之后手机上的电脑记录要重新扫码配对。</div></div>
+          <input class="num" id="setPort" type="number" min="1024" max="65535">
+        </div>
+        <div class="setrow">
+          <div class="txt"><div class="nm">管理界面端口</div>
+            <div class="ds">本控制台端口，默认 8766，只绑 127.0.0.1。改动需重启程序生效。</div></div>
+          <input class="num" id="setAdminPort" type="number" min="1024" max="65535">
+        </div>
+        <div class="setrow">
+          <div class="txt"><div class="nm">Windows 防火墙</div>
+            <div class="ds" id="fwState">检测中…</div></div>
+          <button class="btn sm" id="fwFix2">一键放行</button>
+        </div>
+      </div>
+
+      <div class="sticky">
+        <button class="btn pri" id="setSave">保存设置</button>
+        <button class="btn" id="setReload">还原显示</button>
+        <div class="spacer"></div>
+        <button class="btn danger" id="btnQuit">退出程序</button>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+let STATE = null, PAUSED_KEY = false, PAUSED_VOICE = false, CUR = 'home';
+
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('on'), 1900);
+}
+async function api(path, body){
+  const opt = body ? {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)} : {};
+  const r = await fetch(path, opt);
+  return await r.json();
+}
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// 导航
+$$('.nav').forEach(n => n.onclick = () => {
+  $$('.nav').forEach(x=>x.classList.remove('on'));
+  n.classList.add('on');
+  CUR = n.dataset.tab;
+  ['home','keys','voice','custom','apps','dev','set'].forEach(t=>$('#tab-'+t).classList.toggle('hide', t!==CUR));
+  $('#pageTitle').textContent = n.dataset.label || n.textContent.trim();
+  if(CUR==='apps' && !$('#appList').dataset.loaded) loadApps();
+  if(CUR==='dev') loadDevices();
+  if(CUR==='custom') loadCustom();
+});
+
+// 状态
+async function refreshState(){
+  try{
+    const s = await api('/api/state');
+    STATE = s;
+    const pill = $('#stPill');
+    pill.className = 'pill ' + (s.running ? 'on' : 'off');
+    $('#stText').textContent = s.running ? ('服务运行中 · ' + s.port) : '服务已停止';
+    $('#btnSvc').textContent = s.running ? '停止服务' : '启动服务';
+    $('#btnSvc').className = 'btn ' + (s.running ? '' : 'pri');
+    $('#dryPill').classList.toggle('hide', !s.dry);
+    $('#secWarn').classList.toggle('hide', !!s.require_token);
+    const fw = s.firewall || {};
+    const fwBad = !(fw.ok && fw.action === 'allow');
+    $('#fwWarn').classList.toggle('hide', !fwBad);
+    if(fwBad){
+      $('#fwText').textContent = fw.action === 'block'
+        ? ('⚠ Windows 防火墙有一条「阻止」规则，手机连不上（端口 ' + s.port + '）。点右边放行。')
+        : ('⚠ 未发现 Windows 防火墙放行规则（端口 ' + s.port + '），手机可能连不上。点右边放行。');
+    }
+    $('#fwState').textContent = fw.msg || '—';
+    $('#fwState').style.color = fwBad ? 'var(--bad, #dc2626)' : '';
+    const up = s.update || {};
+    $('#updWarn').classList.toggle('hide', !up.newer);
+    if(up.newer){
+      $('#updText').textContent = '🆕 发现新版本 v' + up.latest + '（当前 v' + (s.version||'') + '）'
+        + (up.notes ? ' · ' + up.notes.slice(0, 90) : '');
+      UPD_URL = up.url || '';
+    }
+    $('#updVer').textContent = 'v' + (s.version||'') + (up.checked ? (up.newer ? ' · 最新 v' + up.latest : (up.latest ? ' · 已是最新' : '')) : ' · 未检查');
+    $('#fPort').textContent = s.port;
+    $('#fAdmin').textContent = s.admin_port;
+    $('#fName').textContent = s.host;
+    $('#fAddr').textContent = s.ip + ':' + s.port;
+    $('#fLink').textContent = s.pair_url;
+    $('#fUptime').textContent = '已运行 ' + s.uptime;
+    $('#qrImg').src = s.qr || '';
+    $('#sKey').textContent = s.stats.key;
+    $('#sFail').textContent = s.stats.key_fail;
+    $('#sFail').classList.toggle('bad', s.stats.key_fail > 0);
+    $('#sVoice').textContent = s.stats.voice;
+    $('#sMiss').textContent = s.stats.voice_miss;
+    $('#iPort').textContent = s.port;
+    $('#iMode').textContent = s.dry ? '安全模式（不执行）' : '正常执行';
+    $('#iApps').textContent = s.apps + ' 个';
+    $('#iNeo').textContent = s.neoshell ? '已接入' : '独立运行';
+    $('#iMac').textContent = s.mac || '—';
+    $('#iOnline').textContent = (s.online || 0) + ' 台' + (s.devices ? ('（共配对 ' + s.devices + '）') : '');
+    $('#iLast').textContent = s.stats.last_seen || '—';
+    if(document.activeElement !== $('#setPort')) $('#setPort').value = s.settings.port;
+    if(document.activeElement !== $('#setAdminPort')) $('#setAdminPort').value = s.settings.admin_port;
+    if(document.activeElement !== $('#setLimit')) $('#setLimit').value = s.settings.log_limit;
+    $$('.sw').forEach(sw => {
+      const k = sw.dataset.k;
+      const v = (k === 'autostart') ? s.autostart : s.settings[k];
+      sw.classList.toggle('on', !!v);
+    });
+    syncRepoInput(s);
+    if(s.apps) $('#appCount').textContent = s.apps;
+  }catch(e){
+    $('#stPill').className = 'pill off';
+    $('#stText').textContent = '管理界面已断开';
+  }
+}
+
+// 记录
+function renderKeys(rows){
+  $('#keyCount').textContent = rows.length;
+  const tb = $('#keyRows');
+  if(!rows.length){ tb.innerHTML = '<tr><td colspan="4" class="empty">暂无记录，手机操作后这里会出现</td></tr>'; return; }
+  tb.innerHTML = rows.slice().reverse().map(r=>
+    `<tr><td class="t">${esc(r.t)}</td><td class="a">${esc(r.action)}</td>
+     <td style="color:${r.ok?'var(--ok)':'var(--bad)'}">${r.ok?'OK':'失败'}</td>
+     <td class="d">${esc(r.detail)}</td></tr>`).join('');
+  // 概览里的最近 8 条
+  $('#miniRows').innerHTML = rows.slice(-8).reverse().map(r=>
+    `<tr><td class="t">${esc(r.t)}</td><td class="a">${esc(r.action)}</td>
+     <td class="d">${esc((r.detail||'').slice(0,70))}</td></tr>`).join('') ||
+    '<tr><td class="empty">暂无记录</td></tr>';
+}
+function renderVoice(rows){
+  $('#voiceCount').textContent = rows.length;
+  const box = $('#voiceList');
+  if(!rows.length){ box.innerHTML = '<div class="empty">还没有语音指令</div>'; return; }
+  box.innerHTML = rows.slice().reverse().map(r=>`
+    <div class="vitem ${r.ok?'':'bad'}">
+      <div class="vhead"><span class="t">${esc(r.t)}</span>
+        <span class="tag ${r.ok?'':'bad'}">${r.ok?'已执行':'失败'}</span>
+        <span>${r.ms} ms</span></div>
+      <div class="vtext">「${esc(r.text)}」</div>
+      <div class="vsteps">${esc(r.steps)}</div>
+      <div class="vsay">${r.say ? '回话：<b>'+esc(r.say)+'</b>' : '<span style="color:#9AA3B2">无回话</span>'}</div>
+    </div>`).join('');
+}
+async function refreshLogs(){
+  try{
+    const d = await api('/api/logs?limit=300');
+    if(!PAUSED_KEY) renderKeys(d.key);
+    if(!PAUSED_VOICE) renderVoice(d.voice);
+  }catch(e){}
+}
+
+// 应用
+async function loadApps(){
+  const box = $('#appList');
+  box.innerHTML = '<div class="empty">加载中…</div>';
+  try{
+    const port = STATE ? STATE.port : 8765;
+    const r = await fetch(`http://127.0.0.1:${port}/apps`);
+    const d = await r.json();
+    const colors = ['#3D7BF5','#16A34A','#E0A21A','#DC3B3B','#7C5CE0','#0EA5A5','#D6548C'];
+    box.dataset.loaded = '1';
+    box.dataset.all = JSON.stringify(d.apps || []);
+    $('#appCount').textContent = (d.apps||[]).length;
+    renderApps('');
+  }catch(e){
+    box.innerHTML = '<div class="empty">读取失败：先启动服务</div>';
+  }
+}
+function renderApps(q){
+  const box = $('#appList');
+  let all = [];
+  try{ all = JSON.parse(box.dataset.all || '[]'); }catch(e){}
+  const kw = (q||'').trim().toLowerCase();
+  const list = kw ? all.filter(a=>a.name.toLowerCase().includes(kw)) : all;
+  if(!list.length){ box.innerHTML = '<div class="empty">没有匹配的应用</div>'; return; }
+  const colors = ['#3D7BF5','#16A34A','#E0A21A','#DC3B3B','#7C5CE0','#0EA5A5','#D6548C'];
+  box.innerHTML = list.map(a=>{
+    const ch = a.name.trim()[0] || '?';
+    const c = colors[ch.charCodeAt(0) % colors.length];
+    return `<div class="appitem"><div class="av" style="background:${c}">${esc(ch)}</div><span title="${esc(a.name)}">${esc(a.name)}</span></div>`;
+  }).join('');
+}
+
+// 交互
+$('#btnSvc').onclick = async () => {
+  if(!STATE) return;
+  $('#btnSvc').disabled = true;
+  const r = await api('/api/service', {op: STATE.running ? 'stop' : 'start'});
+  toast(r.msg); await refreshState(); $('#btnSvc').disabled = false;
+};
+$('#btnQR').onclick = async () => { const r = await api('/api/qr', {}); toast(r.msg); };
+$('#btnCopy').onclick = async () => {
+  try{ await navigator.clipboard.writeText(STATE.pair_url); toast('配对码已复制'); }
+  catch(e){ toast('复制失败，请手动选中配对码'); }
+};
+$('#btnPage').onclick = () => { if(STATE) window.open(STATE.pair_page, '_blank'); };
+$('#keyPause').onclick = e => { PAUSED_KEY = !PAUSED_KEY; e.target.textContent = PAUSED_KEY ? '继续刷新' : '暂停刷新'; };
+$('#voicePause').onclick = e => { PAUSED_VOICE = !PAUSED_VOICE; e.target.textContent = PAUSED_VOICE ? '继续刷新' : '暂停刷新'; };
+$('#keyClear').onclick = async () => { await api('/api/logs/clear', {type:'key'}); renderKeys([]); toast('按键记录已清空'); };
+$('#voiceClear').onclick = async () => { await api('/api/logs/clear', {type:'voice'}); renderVoice([]); toast('语音记录已清空'); };
+$('#keyExport').onclick = () => window.open('/api/export?type=key', '_blank');
+$('#voiceExport').onclick = () => window.open('/api/export?type=voice', '_blank');
+$('#appRescan').onclick = async () => { const r = await api('/api/apps/rescan', {}); toast(r.msg); setTimeout(loadApps, 3500); };
+$('#appSearch').oninput = e => renderApps(e.target.value);
+
+$$('.sw').forEach(sw => sw.onclick = async () => {
+  const k = sw.dataset.k;
+  const now = !sw.classList.contains('on');
+  sw.classList.toggle('on', now);
+  const r = await api('/api/settings', {patch:{[k]: now}});
+  toast(r.msg);
+  if(k === 'dry' || k === 'port') await refreshState();
+});
+$('#setSave').onclick = async () => {
+  const patch = {
+    port: +$('#setPort').value || 8765,
+    admin_port: +$('#setAdminPort').value || 8766,
+    log_limit: +$('#setLimit').value || 500
+  };
+  const r = await api('/api/settings', {patch});
+  toast(r.msg + (('port' in patch) ? '（端口改动需重启服务/程序）' : ''));
+};
+$('#setReload').onclick = refreshState;
+
+// ---------- 版本与更新 ----------
+let REPO_SAVED = null;
+function syncRepoInput(s){
+  if(document.activeElement === $('#repoInput')) return;          // 正在输入不覆盖
+  const saved = (s && s.settings ? s.settings.update_repo : '') || '';
+  if($('#repoInput').value === '' || $('#repoInput').value === REPO_SAVED){
+    $('#repoInput').value = saved; REPO_SAVED = saved;
+  }
+}
+$('#repoSave').onclick = async () => {
+  const v = $('#repoInput').value.trim();
+  const r = await api('/api/settings', {patch:{update_repo: v}});
+  REPO_SAVED = v;
+  toast(v ? '仓库已保存：' + v : '已清空仓库配置');
+};
+$('#updCheck').onclick = async () => {
+  $('#updCheck').disabled = true; $('#updCheck').textContent = '检查中…';
+  try{
+    const r = await api('/api/check-update', {});
+    const up = r.update || {};
+    if(up.newer) toast('🆕 发现新版本 v' + up.latest);
+    else if(up.latest) toast('已是最新版本 v' + r.version);
+    else toast('没取到版本：' + (up.error || '确认仓库已发布 Release 或有 version.json'));
+    refreshState();
+  }catch(e){ toast('检查失败：服务未响应'); }
+  $('#updCheck').disabled = false; $('#updCheck').textContent = '检查更新';
+};
+$('#updGo').onclick = () => { if(UPD_URL) window.open(UPD_URL, '_blank'); };
+$('#btnQuit').onclick = async () => {
+  if(!confirm('退出后手机将无法连接，确定退出吗？')) return;
+  await api('/api/quit', {});
+  document.body.innerHTML = '<div style="padding:80px;text-align:center;color:#5A6474;font-family:sans-serif">程序已退出，可以关闭本窗口。</div>';
+};
+
+// 试一试：走手机同一条 /text 路径
+async function trySend(){
+  const t = $('#tryText').value.trim();
+  if(!t) return;
+  const out = $('#tryOut');
+  out.textContent = '发送中…';
+  try{
+    const port = STATE ? STATE.port : 8765;
+    const r = await fetch(`http://127.0.0.1:${port}/text`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text:t})
+    });
+    const d = await r.json();
+    out.innerHTML = `<b style="color:${d.ok?'var(--ok)':'var(--bad)'}">${d.ok?'成功':'失败'}</b>`
+      + ` · 动作 <span style="font-family:var(--mono);color:var(--pri)">${esc(d.action)}</span>`
+      + (d.say ? ` · 回话「${esc(d.say)}」` : '')
+      + `<div style="font-family:var(--mono);font-size:11.5px;color:var(--tx3);margin-top:3px">${esc(d.detail||'')}</div>`;
+    refreshLogs();
+  }catch(e){
+    out.innerHTML = '<span style="color:var(--bad)">发送失败：服务没启动，或端口不一致</span>';
+  }
+}
+$('#tryBtn').onclick = trySend;
+$('#tryText').onkeydown = e => { if(e.key === 'Enter') trySend(); };
+
+// ---------- 自定义语音指令 ----------
+let CUSTOM_CMDS = [];
+let UPD_URL = '';
+let EDIT_ID = null;   // null=新建，否则正在编辑这条
+const ACT_OPTS = [
+  ['launch_app','打开应用'],['open_url','打开网址'],['web_search','搜索'],
+  ['play_media','视频站搜索播放'],['keys','按键组合'],['type','输入文字'],
+  ['delay','等待（延时）'],
+  ['home','显示桌面'],['alt_tab','切换窗口'],['alt_f4','关闭窗口'],['ok','回车确定'],
+  ['back','返回'],['browser_back','网页后退'],['vol_up','音量＋'],['vol_down','音量－'],
+  ['mute','静音'],['play_pause','播放/暂停'],['prev_track','上一首'],['next_track','下一首'],
+  ['rewind','快退'],['forward','快进'],['taskmgr','任务管理器'],['open_pc','打开此电脑'],
+  ['open_explorer','资源管理器'],['open_browser','打开浏览器'],['open_notepad','记事本'],
+  ['open_calc','计算器'],['open_settings','Windows 设置'],['lock','锁屏'],
+  ['power','关闭显示器'],['mouse_left','鼠标单击'],['mouse_right','鼠标右键'],
+  ['mouse_double','鼠标双击'],['new_folder','新建文件夹'],
+];
+const ACT_NAME = Object.fromEntries(ACT_OPTS);
+const ACT_PH = {   // 参数输入框的占位提示；不在表里 = 无参数动作
+  launch_app:'应用名：微信 / 记事本 / PowerPoint',
+  open_url:'网址：https://www.bilibili.com',
+  web_search:'搜索词', play_media:'搜索词',
+  keys:'键名逗号分隔：ctrl,s 或 win,d', type:'要输入的文字',
+  delay:'毫秒：1000 = 1 秒（100~60000，整条合计≤90秒）',
+  new_folder:'文件夹名',
+};
+async function loadCustom(){
+  try{
+    const d = await api('/api/voice-custom');
+    CUSTOM_CMDS = d.commands || [];
+    renderCustom();
+  }catch(e){
+    $('#customList').innerHTML = '<div class="empty">读取失败：服务没启动</div>';
+  }
+}
+function stepVal(act, arg){    // 步骤 → 输入框里显示的值
+  arg = arg || {};
+  if(act === 'keys') return (arg.keys||[]).join(',');
+  if(act === 'delay') return arg.ms || '';
+  return arg.text || arg.name || arg.q || arg.url || '';
+}
+function stepDesc(act, arg){   // 步骤 → 列表里的摘要
+  const v = stepVal(act, arg);
+  return ACT_NAME[act] + (v ? `（${v}）` : '');
+}
+function stepRow(act, val){
+  const opts = ACT_OPTS.map(([v,t])=>`<option value="${v}"${v===act?' selected':''}>${t}</option>`).join('');
+  const div = document.createElement('div');
+  div.className = 'cstep';
+  div.style.cssText = 'display:flex;gap:6px;align-items:center';
+  div.innerHTML = `<select class="cAct" style="width:150px;padding:8px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:12.5px;color:var(--tx);background:#FCFDFF">${opts}</select>
+    <input class="cVal" placeholder="参数（可空）" style="flex:1;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:12.5px;color:var(--tx)">
+    <button class="btn sm danger cDel">删</button>`;
+  div.querySelector('.cVal').value = val || '';
+  div.querySelector('.cVal').placeholder = ACT_PH[act] || '无参数动作，留空即可';
+  div.querySelector('.cAct').onchange = e => {
+    div.querySelector('.cVal').placeholder = ACT_PH[e.target.value] || '无参数动作，留空即可';
+    if(!ACT_PH[e.target.value]) div.querySelector('.cVal').value = '';
+  };
+  div.querySelector('.cDel').onclick = () => div.remove();
+  return div;
+}
+function renderCustom(){
+  const box = $('#customList');
+  if(!CUSTOM_CMDS.length){
+    box.innerHTML = '<div class="empty">还没有自定义指令。点「＋ 新建指令」，比如短语「开始上课」→ 打开 PowerPoint + 按 F5。</div>';
+    return;
+  }
+  box.innerHTML = CUSTOM_CMDS.map(c=>`
+    <div class="vitem" style="${c.enabled?'':'opacity:.55'}">
+      <div class="vhead"><b style="color:var(--tx)">「${esc(c.phrase)}」</b>
+        ${c.alias && c.alias.length ? `<span style="color:var(--tx3)">别名：${esc(c.alias.join('、'))}</span>` : ''}
+        <span class="tag ${c.enabled?'':'bad'}">${c.enabled?'启用':'停用'}</span>
+        <span class="spacer"></span>
+        <button class="btn sm" data-cact="edit" data-id="${esc(c.id)}">编辑</button>
+        <button class="btn sm" data-cact="toggle" data-id="${esc(c.id)}">${c.enabled?'停用':'启用'}</button>
+        <button class="btn sm danger" data-cact="del" data-id="${esc(c.id)}">删除</button></div>
+      <div class="vsteps">${esc(c.steps.map(s=>stepDesc(s.act,s.arg)).join(' → '))}</div>
+      ${c.say ? `<div class="vsay">回话：<b>${esc(c.say)}</b></div>` : ''}
+    </div>`).join('');
+}
+$('#customList').onclick = async e => {
+  const b = e.target.closest('[data-cact]');
+  if(!b) return;
+  const id = b.dataset.id;
+  const cmd = CUSTOM_CMDS.find(c=>c.id===id);
+  if(!cmd) return;
+  if(b.dataset.cact === 'del'){
+    if(!confirm(`删除「${cmd.phrase}」？`)) return;
+    CUSTOM_CMDS = CUSTOM_CMDS.filter(c=>c.id!==id);
+    const r = await api('/api/voice-custom/save', {commands: CUSTOM_CMDS});
+    toast(r.msg); renderCustom();
+  }else if(b.dataset.cact === 'toggle'){
+    cmd.enabled = !cmd.enabled;
+    const r = await api('/api/voice-custom/save', {commands: CUSTOM_CMDS});
+    toast(r.msg); renderCustom();
+  }else if(b.dataset.cact === 'edit'){
+    openEditor(cmd);
+  }
+};
+function openEditor(cmd){
+  EDIT_ID = cmd ? cmd.id : null;
+  $('#customEditorTitle').textContent = cmd ? '编辑指令' : '新建指令';
+  $('#cPhrase').value = cmd ? cmd.phrase : '';
+  $('#cAlias').value = cmd ? (cmd.alias||[]).join(',') : '';
+  $('#cSay').value = cmd ? (cmd.say||'') : '';
+  const box = $('#cSteps');
+  box.innerHTML = '';
+  const steps = cmd ? cmd.steps : [{act:'launch_app', arg:{}}];
+  (steps.length ? steps : [{act:'launch_app', arg:{}}]).forEach(s=>box.appendChild(stepRow(s.act, stepVal(s.act, s.arg))));
+  $('#customEditor').classList.remove('hide');
+  $('#customEditor').scrollIntoView({behavior:'smooth', block:'start'});
+}
+$('#customAdd').onclick = () => openEditor(null);
+$('#cStepAdd').onclick = () => $('#cSteps').appendChild(stepRow('launch_app',''));
+$('#cCancel').onclick = () => $('#customEditor').classList.add('hide');
+$('#cSave').onclick = async () => {
+  const phrase = $('#cPhrase').value.trim();
+  if(!phrase){ toast('先填触发短语'); return; }
+  // 行 → 步骤：按键组合按逗号拆数组，其余按动作类型选参数键名
+  const steps = [...$('#cSteps').querySelectorAll('.cstep')].map(row=>{
+    const act = row.querySelector('.cAct').value;
+    const val = row.querySelector('.cVal').value.trim();
+    if(!ACT_PH[act]) return {act, arg:{}};
+    if(act === 'keys'){
+      const keys = val.split(/[,，]/).map(x=>x.trim().toLowerCase()).filter(Boolean);
+      return keys.length ? {act, arg:{keys}} : null;
+    }
+    if(act === 'delay'){
+      const ms = parseInt(val, 10);
+      return (ms >= 100 && ms <= 60000) ? {act, arg:{ms}} : null;
+    }
+    if(!val) return null;
+    const k = {type:'text', launch_app:'name', new_folder:'name', open_url:'url', delay:'ms'}[act] || 'q';
+    return {act, arg:{[k]: val}};
+  }).filter(Boolean);
+  if(!steps.length){ toast('至少要有一个动作步骤'); return; }
+  const item = {
+    id: EDIT_ID || ('c' + Date.now()),
+    phrase, say: $('#cSay').value.trim(),
+    alias: $('#cAlias').value.split(/[,，]/).map(x=>x.trim()).filter(Boolean),
+    enabled: true, steps,
+  };
+  const list = EDIT_ID ? CUSTOM_CMDS.map(c=>c.id===EDIT_ID?item:c) : CUSTOM_CMDS.concat([item]);
+  const r = await api('/api/voice-custom/save', {commands: list});
+  toast(r.msg);
+  if(r.ok){ CUSTOM_CMDS = r.commands || list; $('#customEditor').classList.add('hide'); renderCustom(); }
+};
+
+
+// 已配对设备
+async function loadDevices(){
+  let d;
+  try{ d = await api('/api/devices'); }catch(e){ return; }
+  $('#devCount').textContent = d.devices.length;
+  const tb = $('#devRows');
+  if(!d.devices.length){
+    tb.innerHTML = '<tr><td colspan="5" class="empty">还没有手机配过对 —— 手机上「＋ 扫码配对新电脑」扫一下就会出现在这里</td></tr>';
+    return;
+  }
+  tb.innerHTML = d.devices.map(x => `<tr>
+    <td><b>${esc(x.name)}</b>${x.model ? `<div style="font-size:11px;color:var(--tx3)">${esc(x.model)}</div>` : ''}</td>
+    <td class="d">${esc(x.ip || '—')}</td>
+    <td class="d">${x.count || 0}</td>
+    <td class="d">${esc(x.last || '—')}</td>
+    <td><button class="btn sm" data-act="rename" data-id="${x.id}" data-name="${esc(x.name)}">改名</button>
+        <button class="btn sm danger" data-act="revoke" data-id="${x.id}">踢掉</button></td>
+  </tr>`).join('');
+}
+$('#devRows').onclick = async (e) => {
+  const b = e.target.closest('[data-act]');
+  if(!b) return;
+  const id = b.dataset.id;
+  if(b.dataset.act === 'revoke'){
+    if(!confirm('踢掉后这台手机要重新扫码才能用，确定？')) return;
+    const r = await api('/api/devices/revoke', {id});
+    toast(r.msg); loadDevices();
+  }else if(b.dataset.act === 'rename'){
+    const n = prompt('给这台设备起个名字', b.dataset.name || '');
+    if(n === null) return;
+    const r = await api('/api/devices/rename', {id, name: n});
+    toast(r.msg); loadDevices();
+  }
+};
+$('#btnResetTicket').onclick = async () => {
+  if(!confirm('重置后所有手机都要重新扫码配对，确定？')) return;
+  const r = await api('/api/devices/reset', {});
+  toast(r.msg); loadDevices(); refreshState();
+};
+$('#secFix').onclick = async () => {
+  const r = await api('/api/settings', {patch:{require_token:true}});
+  toast(r.msg + '：现在只有已配对设备能控制'); refreshState();
+};
+
+$('#fwFix').onclick = async () => {
+  const r = await api('/api/firewall/add', {});
+  toast(r.msg);
+  // 提权后系统弹窗要人点「是」，等几秒再回读状态
+  setTimeout(()=>api('/api/firewall/check',{}).then(()=>refreshState()), 7000);
+};
+$('#fwFix2').onclick = $('#fwFix').onclick;
+
+// 启动
+refreshState(); refreshLogs();
+setInterval(refreshState, 2000);
+setInterval(refreshLogs, 2000);
+// 支持 #keys / #voice / #apps / #set 直接定位
+if(location.hash){
+  const n = $$('.nav').find(x => x.dataset.tab === location.hash.slice(1));
+  if(n) n.onclick();
+}
+</script>
+</body>
+</html>

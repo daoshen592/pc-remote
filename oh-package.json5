@@ -1,0 +1,10 @@
+{
+  "modelVersion": "5.0.0",
+  "name": "harmonyremote",
+  "version": "1.0.0",
+  "description": "HarmonyOS remote controller UI (RC003-MS layout)",
+  "main": "",
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {}
+}

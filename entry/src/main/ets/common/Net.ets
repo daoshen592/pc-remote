@@ -42,22 +42,26 @@ export class NetClient {
     return this.state;
   }
 
-  /** 连接（重复调用同一地址不会重复拨号） */
+  /** 连接（地址与令牌都没变且链路活着时不会重复拨号） */
   connect(host: string, port: string, token: string): void {
     const h: string = (host ?? '').trim();
     const p: string = (port ?? '').trim();
     if (h.length === 0 || p.length === 0) {
       return;
     }
-    const same: boolean = h === this.host && p === this.port;
+    const tk: string = token ?? '';
+    // 地址或令牌任一变化都要重新拨号：重连循环里存的是拨号那一刻的令牌，
+    // 电脑端踢掉设备后重新扫码，若不重拨就会一直拿被吊销的旧令牌撞 401
+    const same: boolean = h === this.host && p === this.port && tk === this.token;
     if (same && (this.state === 'open' || this.state === 'connecting')) {
       return;
     }
     this.host = h;
     this.port = p;
-    this.token = token ?? '';
+    this.token = tk;
     this.manualClose = false;
     this.retry = 0;
+    this.clearRetry();          // 撤掉挂着的重拨定时器，避免旧参数再拨一次
     this.closeSocket();
     this.open();
   }

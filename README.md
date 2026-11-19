@@ -22,8 +22,8 @@
 
 | 端 | 获取方式 |
 |---|---|
-| PC 端（Windows） | [Releases](../../releases) 下载 `PCRemote-PC-1.1.1.exe`，双击即用（单文件，免安装） |
-| 手机端（HarmonyOS） | Releases 下载 `PCRemotePhone-1.1.1-com.pc.remotecontrol.hap`，或用 DevEco Studio 从源码构建 |
+| PC 端（Windows） | [Releases](../../releases) 下载 `PCRemote-PC-1.1.2.exe`，双击即用（单文件，免安装） |
+| 手机端（HarmonyOS） | Releases 下载 `PCRemotePhone-1.1.2-com.pc.remotecontrol.hap`，或用 DevEco Studio 从源码构建 |
 
 首次运行 exe 时 Windows 可能弹 SmartScreen 提示（未做代码签名），点「更多信息 → 仍要运行」即可。
 

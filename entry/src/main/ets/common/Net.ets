@@ -1,5 +1,6 @@
 import { webSocket } from '@kit.NetworkKit';
-import { BusinessError } from '@kit.BasicServicesKit';
+import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
+import { display } from '@kit.ArkUI';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 
 /**
@@ -118,6 +119,21 @@ export class NetClient {
       self.retry = 0;
       self.setState('open');
       hilog.info(0x0000, 'RemoteUI', 'ws open %{public}s', url);
+      // 连上就报一次本机信息：电脑控制台「手机」卡显示（未配对也能显示状态）
+      let resStr = '';
+      try {
+        const dsp = display.getDefaultDisplaySync();
+        resStr = `${dsp.width}x${dsp.height}`;
+      } catch (e) {
+        // 个别设备取不到屏幕参数，留空即可
+      }
+      const ann: Record<string, Object> = {
+        'path': '/announce',
+        'model': (deviceInfo.marketName ?? '') as Object,
+        'os': (deviceInfo.osFullName ?? '') as Object,
+        'res': resStr as Object,
+      };
+      self.send(ann);
     });
     sock.on('message', (err: BusinessError, data: string | ArrayBuffer) => {
       if (err || typeof data !== 'string') {

@@ -58,6 +58,7 @@ main{flex:1;min-width:0;padding:22px 26px 40px}
 
 .grid{display:grid;gap:14px}
 .g2{grid-template-columns:360px 1fr}
+.g2 > *{min-width:0}                        /* 防止超长配对码把右列挤窄 */
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow)}
 .card h2{font-size:13px;font-weight:600;color:var(--tx2);margin-bottom:12px;letter-spacing:.3px;
   display:flex;align-items:center;gap:7px}
@@ -71,8 +72,6 @@ main{flex:1;min-width:0;padding:22px 26px 40px}
 .qrinfo .k{color:var(--tx3);flex:none}
 .qrinfo .v{font-family:var(--mono);word-break:break-all;text-align:right;color:var(--tx)}
 .qrinfo .row:first-child{border-top:0}
-.qrbtns{display:flex;gap:8px;margin-top:12px}
-.qrbtns .btn{flex:1}
 
 /* 状态数值 */
 .kv{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
@@ -156,7 +155,7 @@ select.opt{padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-f
       <div class="nav" data-tab="voice" data-label="语音记录"><i>◍</i>语音记录</div>
       <div class="nav" data-tab="custom" data-label="自定义指令"><i>✦</i>自定义指令</div>
       <div class="nav" data-tab="apps" data-label="应用列表"><i>▤</i>应用列表</div>
-      <div class="nav" data-tab="dev" data-label="已配对设备"><i>⌸</i>已配对设备</div>
+      <div class="nav" data-tab="dev" data-label="设备管理"><i>⌸</i>设备管理</div>
       <div class="nav" data-tab="set" data-label="设置"><i>⚙</i>设置</div>
     </nav>
     <div class="side-foot">
@@ -172,7 +171,6 @@ select.opt{padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-f
       <span class="pill" id="stPill"><span class="dot"></span><span id="stText">检测中</span></span>
       <span class="pill hide" id="dryPill">安全模式</span>
       <div class="spacer"></div>
-      <button class="btn" id="btnQR">显示二维码</button>
       <button class="btn pri" id="btnSvc">启动服务</button>
     </div>
 
@@ -197,11 +195,7 @@ select.opt{padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-f
           <div class="qrinfo">
             <div class="row"><span class="k">电脑名</span><span class="v" id="fName">—</span></div>
             <div class="row"><span class="k">局域网地址</span><span class="v" id="fAddr">—</span></div>
-            <div class="row"><span class="k">配对码</span><span class="v" id="fLink" style="font-size:11px">—</span></div>
-          </div>
-          <div class="qrbtns">
-            <button class="btn" id="btnCopy">复制配对码</button>
-            <button class="btn" id="btnPage">配对页</button>
+            <div class="row"><span class="k">配对码</span><span class="v" id="fLink" style="font-size:11px;word-break:break-all">—</span></div>
           </div>
         </div>
 
@@ -218,16 +212,15 @@ select.opt{padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-f
               <div class="row"><span class="k">服务端口</span><span class="v" id="iPort">—</span></div>
               <div class="row"><span class="k">运行模式</span><span class="v" id="iMode">—</span></div>
               <div class="row"><span class="k">应用数量</span><span class="v" id="iApps">—</span></div>
-              <div class="row"><span class="k">NeoShell</span><span class="v" id="iNeo">—</span></div>
               <div class="row"><span class="k">网卡 MAC</span><span class="v" id="iMac">—</span></div>
               <div class="row"><span class="k">在线设备</span><span class="v" id="iOnline">—</span></div>
               <div class="row"><span class="k">最近活动</span><span class="v" id="iLast">—</span></div>
             </div>
           </div>
           <div class="card">
-            <h2>最近操作</h2>
-            <div class="scroll" style="max-height:250px">
-              <table class="tbl"><tbody id="miniRows"><tr><td class="empty">暂无记录</td></tr></tbody></table>
+            <h2>手机 <span class="more" id="phState">—</span></h2>
+            <div class="info" id="phBody">
+              <div class="row"><span class="k">状态</span><span class="v">还没有手机配对</span></div>
             </div>
           </div>
         </div>
@@ -236,7 +229,7 @@ select.opt{padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-f
       <div class="card" style="margin-top:14px">
         <h2>试一试 <span class="more">和手机说语音走同一条解析路径，会真的执行</span></h2>
         <div style="display:flex;gap:8px">
-          <input id="tryText" placeholder="例如：打开计算器然后静音 · 把屏幕关掉 · 搜一下卫生监督执法"
+          <input id="tryText" placeholder="例如：打开计算器然后静音 · 把屏幕关掉 · 搜一下天气"
             style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:13px;color:var(--tx)">
           <button class="btn pri" id="tryBtn">发送</button>
         </div>
@@ -247,7 +240,7 @@ select.opt{padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-f
     <!-- 按键记录 -->
     <section id="tab-keys" class="hide">
       <div class="card">
-        <h2>按键 / 动作记录 <span class="more"><span id="keyCount">0</span> 条 · 每 2 秒刷新</span></h2>
+        <h2>按键 / 动作记录 <span class="more"><span id="keyCount">0</span> 条 · 最多保留 100 条 · 重启不丢</span></h2>
         <div style="display:flex;gap:8px;margin-bottom:10px">
           <button class="btn sm" id="keyPause">暂停刷新</button>
           <button class="btn sm" id="keyExport">导出</button>
@@ -265,7 +258,7 @@ select.opt{padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-f
     <!-- 语音记录 -->
     <section id="tab-voice" class="hide">
       <div class="card">
-        <h2>语音记录 <span class="more"><span id="voiceCount">0</span> 条 · 原话与解析结果</span></h2>
+        <h2>语音记录 <span class="more"><span id="voiceCount">0</span> 条 · 最多保留 100 条 · 重启不丢</span></h2>
         <div style="display:flex;gap:8px;margin-bottom:12px">
           <button class="btn sm" id="voicePause">暂停刷新</button>
           <button class="btn sm" id="voiceExport">导出</button>
@@ -278,7 +271,7 @@ select.opt{padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-f
     <!-- 自定义语音指令 -->
     <section id="tab-custom" class="hide">
       <div class="card">
-        <h2>自定义指令 <span class="more">说一句话触发一串动作 · 命中优先级高于内置指令 · 保存即生效</span></h2>
+        <h2>自定义指令 <span class="more">说一句话触发一串动作 · 最多 10 条 · 命中优先级高于内置指令 · 保存即生效</span></h2>
         <div id="customList" style="display:flex;flex-direction:column;gap:8px"><div class="empty">加载中…</div></div>
         <div style="margin-top:12px"><button class="btn pri" id="customAdd">＋ 新建指令</button></div>
       </div>
@@ -314,9 +307,9 @@ select.opt{padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-f
       </div>
     </section>
 
-    <!-- 已配对设备 -->
+    <!-- 设备管理 -->
     <section id="tab-dev" class="hide">
-      <div class="card set">
+      <div class="card">
         <h2>访问控制</h2>
         <div class="setrow">
           <div class="txt"><div class="nm">只允许已配对设备</div>
@@ -330,7 +323,7 @@ select.opt{padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-f
         </div>
       </div>
       <div class="card" style="margin-top:14px">
-        <h2>已配对设备 <span class="more"><span id="devCount">0</span> 台 · 上限 12 台</span></h2>
+        <h2>已配对设备 <span class="more"><span id="devCount">0</span> 台 · 上限 12 台 · 可控制本机</span></h2>
         <div class="scroll">
           <table class="tbl">
             <thead><tr><th>设备</th><th style="width:130px">IP</th><th style="width:70px">请求数</th>
@@ -340,6 +333,19 @@ select.opt{padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-f
         </div>
         <div style="margin-top:10px;font-size:11.5px;color:var(--tx3);line-height:1.8">
           手机上「主页顶部电脑名 → ＋ 扫码配对新电脑」扫一次即自动登记；换手机后重新扫即可。踢掉的手机立刻连不上，需要重新扫码。
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h2>已连接设备 <span class="more"><span id="openCount">0</span> 台 · 未配对 · 仅开放模式</span></h2>
+        <div class="scroll">
+          <table class="tbl">
+            <thead><tr><th>设备</th><th style="width:130px">IP</th><th style="width:80px">最后活动</th>
+              <th style="width:70px">状态</th><th style="width:80px">操作</th></tr></thead>
+            <tbody id="openRows"><tr><td colspan="5" class="empty">没有未配对的连接记录</td></tr></tbody>
+          </table>
+        </div>
+        <div style="margin-top:10px;font-size:11.5px;color:var(--tx3);line-height:1.8">
+          「只允许已配对设备」关闭时，没扫码的手机也能连上控制，这里记录它们最近一次连接的信息（保留 24 小时）。开启该开关后这些设备会被直接拒绝。
         </div>
       </div>
     </section>
@@ -359,11 +365,6 @@ select.opt{padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-f
           <div class="sw" data-k="start_hidden"></div>
         </div>
         <div class="setrow">
-          <div class="txt"><div class="nm">安全模式（只记录不执行）</div>
-            <div class="ds">所有动作只写记录、不真正按键。第一次在新电脑上试可以开着。</div></div>
-          <div class="sw" data-k="dry"></div>
-        </div>
-        <div class="setrow">
           <div class="txt"><div class="nm">允许关机 / 重启 / 睡眠</div>
             <div class="ds">关掉后手机仍能关屏、锁屏，但电源菜单的关机/重启/睡眠会被拒绝，防误触。</div></div>
           <div class="sw" data-k="allow_power"></div>
@@ -378,46 +379,19 @@ select.opt{padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-f
             <div class="ds">执行完给手机回一句「正在打开微信」之类的提示。关掉则只执行不吭声。</div></div>
           <div class="sw" data-k="voice_reply"></div>
         </div>
-        <div class="setrow">
-          <div class="txt"><div class="nm">语音 LLM 兜底</div>
-            <div class="ds">本地规则没听懂时，把话交给大模型拆成动作再执行（联网，约 2-5 秒）。口述文字、闲聊不受影响。默认关。</div></div>
-          <div class="sw" data-k="llm_fallback"></div>
-        </div>
       </div>
 
       <div class="card set" style="margin-top:14px">
         <h2>版本与更新 <span class="more" id="updVer">—</span></h2>
         <div class="setrow">
           <div class="txt"><div class="nm">启动时检查更新</div>
-            <div class="ds">启动 8 秒后后台查一次 GitHub，有新版本只在控制台和托盘气泡提示，不会自动下载安装。</div></div>
+            <div class="ds">启动 8 秒后后台查一次 GitHub Releases，有新版本只在控制台和托盘气泡提示，不会自动下载安装。</div></div>
           <div class="sw" data-k="update_check"></div>
         </div>
-        <div class="setrow" style="display:block">
-          <div class="txt" style="margin-bottom:8px"><div class="nm">GitHub 仓库</div>
-            <div class="ds">形如 yourname/pc-remote。优先读仓库的 Releases（取最新 tag），没有 Release 时读仓库根目录的 version.json。改完点「保存仓库」。</div></div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <input id="repoInput" placeholder="yourname/pc-remote" style="flex:1;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;color:var(--tx);background:#FCFDFF">
-            <button class="btn" id="repoSave">保存仓库</button>
-            <button class="btn pri" id="updCheck">检查更新</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="card set" style="margin-top:14px">
-        <h2>记录</h2>
         <div class="setrow">
-          <div class="txt"><div class="nm">记录同时写入文件</div>
-            <div class="ds">在 exe 同目录 logs\ 下按天存 key-*.log / voice-*.log，方便事后翻查。</div></div>
-          <div class="sw" data-k="save_log"></div>
-        </div>
-        <div class="setrow">
-          <div class="txt"><div class="nm">内存保留条数</div>
-            <div class="ds">界面里最多显示多少条，超出自动丢弃最早的。不影响落盘文件。</div></div>
-          <select class="opt" id="setLimit">
-            <option value="200">200 条</option>
-            <option value="500">500 条</option>
-            <option value="1000">1000 条</option>
-          </select>
+          <div class="txt"><div class="nm">立即检查</div>
+            <div class="ds">更新源已内置（GitHub Releases），无需配置。</div></div>
+          <button class="btn pri" id="updCheck">检查更新</button>
         </div>
       </div>
 
@@ -523,19 +497,27 @@ async function refreshState(){
     $('#iPort').textContent = s.port;
     $('#iMode').textContent = s.dry ? '安全模式（不执行）' : '正常执行';
     $('#iApps').textContent = s.apps + ' 个';
-    $('#iNeo').textContent = s.neoshell ? '已接入' : '独立运行';
     $('#iMac').textContent = s.mac || '—';
-    $('#iOnline').textContent = (s.online || 0) + ' 台' + (s.devices ? ('（共配对 ' + s.devices + '）') : '');
+    // 手机卡：只显示「当前连接着」的手机（型号/系统/IP），没连接就一行提示
+    const ph = (s.phones || []).filter(x => x.online);
+    $('#phState').textContent = ph.length ? ('已连接 ' + ph.length + ' 台') : '未连接';
+    $('#iOnline').textContent = (s.online || 0) + ' 台' + (s.devices ? (' · 共配对 ' + s.devices) : '');
+    $('#phBody').innerHTML = ph.length
+      ? ph.map(x =>
+          `<div class="row"><span class="k">型号</span><span class="v">${esc(x.model || '未知')}</span></div>` +
+          `<div class="row"><span class="k">系统</span><span class="v">${esc(x.os || '—')}</span></div>` +
+          `<div class="row"><span class="k">分辨率</span><span class="v">${esc(x.res || '—')}</span></div>` +
+          `<div class="row"><span class="k">IP 地址</span><span class="v">${esc(x.ip || '—')}</span></div>`
+        ).join('')
+      : '<div class="row"><span class="k">状态</span><span class="v">没有手机连接</span></div>';
     $('#iLast').textContent = s.stats.last_seen || '—';
     if(document.activeElement !== $('#setPort')) $('#setPort').value = s.settings.port;
     if(document.activeElement !== $('#setAdminPort')) $('#setAdminPort').value = s.settings.admin_port;
-    if(document.activeElement !== $('#setLimit')) $('#setLimit').value = s.settings.log_limit;
     $$('.sw').forEach(sw => {
       const k = sw.dataset.k;
       const v = (k === 'autostart') ? s.autostart : s.settings[k];
       sw.classList.toggle('on', !!v);
     });
-    syncRepoInput(s);
     if(s.apps) $('#appCount').textContent = s.apps;
   }catch(e){
     $('#stPill').className = 'pill off';
@@ -552,11 +534,6 @@ function renderKeys(rows){
     `<tr><td class="t">${esc(r.t)}</td><td class="a">${esc(r.action)}</td>
      <td style="color:${r.ok?'var(--ok)':'var(--bad)'}">${r.ok?'OK':'失败'}</td>
      <td class="d">${esc(r.detail)}</td></tr>`).join('');
-  // 概览里的最近 8 条
-  $('#miniRows').innerHTML = rows.slice(-8).reverse().map(r=>
-    `<tr><td class="t">${esc(r.t)}</td><td class="a">${esc(r.action)}</td>
-     <td class="d">${esc((r.detail||'').slice(0,70))}</td></tr>`).join('') ||
-    '<tr><td class="empty">暂无记录</td></tr>';
 }
 function renderVoice(rows){
   $('#voiceCount').textContent = rows.length;
@@ -575,8 +552,8 @@ function renderVoice(rows){
 async function refreshLogs(){
   try{
     const d = await api('/api/logs?limit=300');
-    if(!PAUSED_KEY) renderKeys(d.key);
-    if(!PAUSED_VOICE) renderVoice(d.voice);
+    if(!PAUSED_KEY) renderKeys(d.key || []);
+    if(!PAUSED_VOICE) renderVoice(d.voice || []);
   }catch(e){}
 }
 
@@ -619,12 +596,6 @@ $('#btnSvc').onclick = async () => {
   const r = await api('/api/service', {op: STATE.running ? 'stop' : 'start'});
   toast(r.msg); await refreshState(); $('#btnSvc').disabled = false;
 };
-$('#btnQR').onclick = async () => { const r = await api('/api/qr', {}); toast(r.msg); };
-$('#btnCopy').onclick = async () => {
-  try{ await navigator.clipboard.writeText(STATE.pair_url); toast('配对码已复制'); }
-  catch(e){ toast('复制失败，请手动选中配对码'); }
-};
-$('#btnPage').onclick = () => { if(STATE) window.open(STATE.pair_page, '_blank'); };
 $('#keyPause').onclick = e => { PAUSED_KEY = !PAUSED_KEY; e.target.textContent = PAUSED_KEY ? '继续刷新' : '暂停刷新'; };
 $('#voicePause').onclick = e => { PAUSED_VOICE = !PAUSED_VOICE; e.target.textContent = PAUSED_VOICE ? '继续刷新' : '暂停刷新'; };
 $('#keyClear').onclick = async () => { await api('/api/logs/clear', {type:'key'}); renderKeys([]); toast('按键记录已清空'); };
@@ -640,13 +611,12 @@ $$('.sw').forEach(sw => sw.onclick = async () => {
   sw.classList.toggle('on', now);
   const r = await api('/api/settings', {patch:{[k]: now}});
   toast(r.msg);
-  if(k === 'dry' || k === 'port') await refreshState();
+  if(k === 'port') await refreshState();
 });
 $('#setSave').onclick = async () => {
   const patch = {
     port: +$('#setPort').value || 8765,
-    admin_port: +$('#setAdminPort').value || 8766,
-    log_limit: +$('#setLimit').value || 500
+    admin_port: +$('#setAdminPort').value || 8766
   };
   const r = await api('/api/settings', {patch});
   toast(r.msg + (('port' in patch) ? '（端口改动需重启服务/程序）' : ''));
@@ -654,20 +624,6 @@ $('#setSave').onclick = async () => {
 $('#setReload').onclick = refreshState;
 
 // ---------- 版本与更新 ----------
-let REPO_SAVED = null;
-function syncRepoInput(s){
-  if(document.activeElement === $('#repoInput')) return;          // 正在输入不覆盖
-  const saved = (s && s.settings ? s.settings.update_repo : '') || '';
-  if($('#repoInput').value === '' || $('#repoInput').value === REPO_SAVED){
-    $('#repoInput').value = saved; REPO_SAVED = saved;
-  }
-}
-$('#repoSave').onclick = async () => {
-  const v = $('#repoInput').value.trim();
-  const r = await api('/api/settings', {patch:{update_repo: v}});
-  REPO_SAVED = v;
-  toast(v ? '仓库已保存：' + v : '已清空仓库配置');
-};
 $('#updCheck').onclick = async () => {
   $('#updCheck').disabled = true; $('#updCheck').textContent = '检查中…';
   try{
@@ -824,7 +780,10 @@ function openEditor(cmd){
   $('#customEditor').classList.remove('hide');
   $('#customEditor').scrollIntoView({behavior:'smooth', block:'start'});
 }
-$('#customAdd').onclick = () => openEditor(null);
+$('#customAdd').onclick = () => {
+  if(CUSTOM_CMDS.length >= 10){ toast('自定义指令最多 10 条，先删掉一条再新建'); return; }
+  openEditor(null);
+};
 $('#cStepAdd').onclick = () => $('#cSteps').appendChild(stepRow('launch_app',''));
 $('#cCancel').onclick = () => $('#customEditor').classList.add('hide');
 $('#cSave').onclick = async () => {
@@ -861,7 +820,7 @@ $('#cSave').onclick = async () => {
 };
 
 
-// 已配对设备
+// 设备管理
 async function loadDevices(){
   let d;
   try{ d = await api('/api/devices'); }catch(e){ return; }
@@ -869,17 +828,37 @@ async function loadDevices(){
   const tb = $('#devRows');
   if(!d.devices.length){
     tb.innerHTML = '<tr><td colspan="5" class="empty">还没有手机配过对 —— 手机上「＋ 扫码配对新电脑」扫一下就会出现在这里</td></tr>';
-    return;
+  }else{
+    tb.innerHTML = d.devices.map(x => `<tr>
+      <td><b>${esc(x.name)}</b>${x.model ? `<div style="font-size:11px;color:var(--tx3)">${esc(x.model)}</div>` : ''}</td>
+      <td class="d">${esc(x.ip || '—')}</td>
+      <td class="d">${x.count || 0}</td>
+      <td class="d">${esc(x.last || '—')}</td>
+      <td><button class="btn sm" data-act="rename" data-id="${x.id}" data-name="${esc(x.name)}">改名</button>
+          <button class="btn sm danger" data-act="revoke" data-id="${x.id}">踢掉</button></td>
+    </tr>`).join('');
   }
-  tb.innerHTML = d.devices.map(x => `<tr>
-    <td><b>${esc(x.name)}</b>${x.model ? `<div style="font-size:11px;color:var(--tx3)">${esc(x.model)}</div>` : ''}</td>
-    <td class="d">${esc(x.ip || '—')}</td>
-    <td class="d">${x.count || 0}</td>
-    <td class="d">${esc(x.last || '—')}</td>
-    <td><button class="btn sm" data-act="rename" data-id="${x.id}" data-name="${esc(x.name)}">改名</button>
-        <button class="btn sm danger" data-act="revoke" data-id="${x.id}">踢掉</button></td>
-  </tr>`).join('');
+  // 未配对但连接过的设备（开放模式下的临时记录）
+  const opens = d.open || [];
+  $('#openCount').textContent = opens.length;
+  const ob = $('#openRows');
+  ob.innerHTML = opens.length
+    ? opens.map(x => `<tr>
+        <td><b>${esc(x.model || '未识别设备')}</b>${x.os ? `<div style="font-size:11px;color:var(--tx3)">${esc(x.os)}${x.res ? ' · ' + esc(x.res) : ''}</div>` : ''}</td>
+        <td class="d">${esc(x.ip || '—')}</td>
+        <td class="d">${esc(x.last || '—')}</td>
+        <td class="d"><span style="color:${x.online ? 'var(--ok)' : 'var(--tx3)'}">${x.online ? '● 在线' : '○ 离线'}</span></td>
+        <td><button class="btn sm" data-act="forget" data-ip="${esc(x.ip)}">移除</button></td>
+      </tr>`).join('')
+    : '<tr><td colspan="5" class="empty">没有未配对的连接记录</td></tr>';
 }
+$('#openRows').onclick = async (e) => {
+  const b = e.target.closest('[data-act]');
+  if(!b) return;
+  const r = await api('/api/open/forget', {ip: b.dataset.ip});
+  toast(r.msg || '已移除');
+  loadDevices();
+};
 $('#devRows').onclick = async (e) => {
   const b = e.target.closest('[data-act]');
   if(!b) return;

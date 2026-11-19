@@ -56,6 +56,35 @@ RECORDS = []            # 兼容老记录页：纯文本行
 KEY_LOG = []            # 结构化按键/动作记录（管理界面用）
 VOICE_LOG = []          # 语音记录：原话 -> 解析 -> 回话
 LOG_LOCK = threading.Lock()
+
+# ---------- 按键/语音记录落盘（exe 同目录 records.json，各留最近 100 条） ----------
+RECORDS_FILE = BASE_DIR / 'records.json'
+RECORD_CAP = 100
+
+
+def load_records():
+    """启动时把上次的按键/语音记录读回来（各最多 100 条）。"""
+    try:
+        if RECORDS_FILE.exists():
+            data = json.loads(RECORDS_FILE.read_text(encoding='utf-8'))
+            with LOG_LOCK:
+                KEY_LOG.extend([r for r in (data.get('key') or [])
+                                if isinstance(r, dict)][-RECORD_CAP:])
+                VOICE_LOG.extend([r for r in (data.get('voice') or [])
+                                  if isinstance(r, dict)][-RECORD_CAP:])
+    except Exception:
+        pass
+
+
+def save_records():
+    """把当前记录写回 records.json（触发频繁时也只是几 KB 的小写入）。"""
+    try:
+        with LOG_LOCK:
+            data = {'key': list(KEY_LOG)[-RECORD_CAP:],
+                    'voice': list(VOICE_LOG)[-RECORD_CAP:]}
+        RECORDS_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+    except Exception:
+        pass
 STATS = {'key': 0, 'key_fail': 0, 'voice': 0, 'voice_miss': 0, 'move': 0,
          'start_ts': datetime.now(), 'last_seen': ''}
 LOCK = threading.Lock()
@@ -63,6 +92,7 @@ _LAST_SEEN_TS = [0.0]        # STATS['last_seen'] 上次格式化的时间（高
 
 # ---------- 设置项（存在 exe 同目录 settings.json） ----------
 SETTINGS_FILE = BASE_DIR / 'settings.json'
+UPDATE_REPO_DEFAULT = 'daoshen592/pc-remote'   # 更新检查仓库（界面不暴露，写死）
 DEFAULT_SETTINGS = {
     'port': 8765,             # 遥控服务端口（手机连这个）
     'admin_port': 8766,       # 管理界面端口（只绑本机 127.0.0.1）
@@ -70,20 +100,20 @@ DEFAULT_SETTINGS = {
     'start_hidden': False,    # 启动时不显示黑色控制台窗口
     'allow_power': True,      # 允许手机执行关机/重启/睡眠（防误触可关）
     'voice_reply': True,      # 手机是否显示/播报回话
-    'llm_fallback': False,    # 语音本地没懂时交给大模型拆步骤（联网，约2-5秒）
-    'save_log': False,        # 记录同时落盘到 logs 目录
-    'log_limit': 500,         # 内存里保留多少条
-    'dry': False,             # 安全模式：只打印不执行
     'require_token': False,   # 只允许已配对设备控制（默认关，配好手机后到控制台一键开启）
     'hotkeys': True,          # 全局热键：Ctrl+Alt+Q 二维码 / Ctrl+Alt+S 启停服务
     'fw_asked': False,        # 是否已经提示过防火墙放行（避免每次启动都弹）
     'update_check': True,     # 启动后检查 GitHub 是否有新版本（不下载，只提示）
-    'update_repo': '',        # GitHub 仓库，形如 'yourname/pc-remote'；留空不检查
+    'update_repo': UPDATE_REPO_DEFAULT,   # 更新检查用的 GitHub 仓库（界面已去掉，写死）
+    'win_x': 140,             # 控制台窗口位置/大小（关闭时自动记住，下次原位打开）
+    'win_y': 60,
+    'win_w': 1120,
+    'win_h': 780,
 }
 SETTINGS = dict(DEFAULT_SETTINGS)
 
 # ---------- 版本与更新检查 ----------
-APP_VERSION = '1.1.1'
+APP_VERSION = '1.1.2'
 UPDATE = {'checked': False, 'latest': '', 'url': '', 'notes': '',
           'newer': False, 'ts': 0, 'error': ''}
 UPDATE_LOCK = threading.Lock()
@@ -97,7 +127,7 @@ def _ver_tuple(s):
 
 def check_update(timeout=8):
     """查 GitHub 最新版本：先 Releases API，失败退 raw version.json。结果写 UPDATE。"""
-    repo = str(SETTINGS.get('update_repo') or '').strip().strip('/')
+    repo = str(SETTINGS.get('update_repo') or '').strip().strip('/') or UPDATE_REPO_DEFAULT
     if not repo or '/' not in repo:
         return {'ok': False, 'msg': '未配置 update_repo（settings.json 里填 yourname/仓库名）'}
     tag = url = notes = ''
@@ -159,8 +189,6 @@ def load_settings():
     except Exception as exc:
         print('[cfg] 读取设置失败（用默认值）:', exc)
     PORT = int(SETTINGS.get('port') or 8765)
-    if SETTINGS.get('dry'):
-        DRY = True
     return SETTINGS
 
 
@@ -183,26 +211,17 @@ def save_settings(patch):
     except Exception as exc:
         print('[cfg] 保存设置失败:', exc)
     PORT = int(SETTINGS.get('port') or 8765)
-    DRY = ('--dry' in sys.argv) or bool(SETTINGS.get('dry'))
+    DRY = '--dry' in sys.argv
     return SETTINGS
 
 
 def _push_log(bucket, row):
-    limit = int(SETTINGS.get('log_limit') or 500)
+    limit = RECORD_CAP                   # 记录固定留最近 100 条（落盘 records.json）
     with LOG_LOCK:
         bucket.append(row)
         if len(bucket) > limit:
             del bucket[0:len(bucket) - limit]
-    if SETTINGS.get('save_log'):
-        try:
-            d = BASE_DIR / 'logs'
-            d.mkdir(exist_ok=True)
-            f = d / ('%s-%s.log' % ('key' if bucket is KEY_LOG else 'voice',
-                                    datetime.now().strftime('%Y%m%d')))
-            with open(f, 'a', encoding='utf-8') as fp:
-                fp.write(json.dumps(row, ensure_ascii=False) + '\n')
-        except Exception:
-            pass
+    save_records()                        # 记录落盘（各留最近 100 条，重启不丢）
 
 
 def _autostart_cmd():
@@ -332,6 +351,8 @@ def revoke_device(dev_id):
         for d in hit:
             TOKENS.pop(d.get('token'), None)
     save_devices()
+    for d in hit:
+        kick_token(d.get('token'))      # 马上断开这条连接，手机端立刻感知被移除
     return True, '已踢下线：%s（该手机需要重新扫码）' % hit[0].get('name', '')
 
 
@@ -351,10 +372,13 @@ def reset_ticket():
     """换新配对票据：所有手机都得重新扫码（设备列表一并清空）。"""
     global DEVICES
     with _DEV_LOCK:
+        dead = list(TOKENS.keys())
         DEVICES['ticket'] = _rand_hex(8)
         DEVICES['devices'] = []
         TOKENS.clear()
     save_devices()
+    for t in dead:
+        kick_token(t)
     return True, '配对票据已重置，所有手机需要重新扫码'
 
 
@@ -368,6 +392,11 @@ def auth_request(handler, payload=None):
     if ip in ('127.0.0.1', '::1'):
         return True, 'local'
     if not SETTINGS.get('require_token', False):
+        if ip and ip not in ('127.0.0.1', '::1'):
+            with _OPEN_SEEN_LOCK:
+                seen = OPEN_SEEN.get(ip)
+                if seen:
+                    seen['last_ts'] = time.time()   # 有动作就续上「在线」状态
         return True, 'open'
     token = ''
     try:
@@ -398,6 +427,11 @@ def auth_request(handler, payload=None):
 
 ONLINE_WINDOW = 120          # 这么多秒内有动作算「在线」
 
+# 未配对手机的临时名单（开放模式）：手机 WS 连上会发 /announce 报型号，
+# 按 IP 记录。配对开关关着时手机不注册也有档案，控制台「手机」卡能显示状态。
+OPEN_SEEN = {}               # ip -> {'model','os','last_ts'}
+_OPEN_SEEN_LOCK = threading.Lock()
+
 
 def online_devices(window=ONLINE_WINDOW):
     """最近 window 秒内有请求的设备（给托盘/控制台显示在线台数）。"""
@@ -411,11 +445,70 @@ def online_devices(window=ONLINE_WINDOW):
     return out
 
 
+def connected_devices():
+    """真正「连接着」的设备 = WS 长连接还挂着，或最近有操作。
+
+    只看 last_ts 会把"连着但闲着"的手机显示成离线（手机不开操控盘时
+    不发任何请求，连接却是活的），所以把 WS 活连接也算进来。"""
+    with _WS_LIVE_LOCK:
+        live = set(_WS_LIVE.keys())
+    now = time.time()
+    out = []
+    with _DEV_LOCK:
+        for d in DEVICES.get('devices') or []:
+            ts = float(d.get('last_ts') or 0)
+            if (d.get('token') or '') in live or (ts and now - ts <= ONLINE_WINDOW):
+                out.append(d)
+    return out
+
+
+def phone_list():
+    """手机卡数据：已配对设备 + 开放模式下的未配对手机，在线的排前面。"""
+    with _WS_LIVE_LOCK:
+        live = set(_WS_LIVE.keys())
+    now = time.time()
+    rows = []
+    paired_ips = set()
+    with _DEV_LOCK:
+        for d in DEVICES.get('devices') or []:
+            tok = d.get('token') or ''
+            ts = float(d.get('last_ts') or 0)
+            online = tok in live or bool(ts and now - ts <= ONLINE_WINDOW)
+            if d.get('ip'):
+                paired_ips.add(d['ip'])
+            rows.append({'name': d.get('name'), 'model': d.get('model'),
+                         'os': d.get('os') or '', 'res': d.get('res') or '',
+                         'ip': d.get('ip'), 'last': d.get('last'), 'online': online})
+    # 开放模式下没配对的手机：WS 活着或最近有动作都算在线
+    with _OPEN_SEEN_LOCK:
+        seen_items = list(OPEN_SEEN.items())
+    stale = []
+    for ip, v in seen_items:
+        if ip in paired_ips:
+            continue
+        age = now - float(v.get('last_ts') or 0)
+        if age > 86400:
+            stale.append(ip)             # 超过一天没动静的临时记录直接清掉
+            continue
+        online = ('open:' + ip) in live or age <= ONLINE_WINDOW
+        rows.append({'name': '未配对手机', 'model': v.get('model') or '',
+                     'os': v.get('os') or '', 'res': v.get('res') or '',
+                     'ip': ip,
+                     'last': datetime.fromtimestamp(float(v.get('last_ts') or now)).strftime('%H:%M:%S'),
+                     'online': online})
+    if stale:
+        with _OPEN_SEEN_LOCK:
+            for ip in stale:
+                OPEN_SEEN.pop(ip, None)
+    rows.sort(key=lambda x: (not x['online'], x.get('name') or ''))
+    return rows
+
+
 def tray_status_text():
     """托盘状态行：运行状态 + 端口 + 在线台数。"""
     if not service_running():
         return '○ 服务已停止'
-    n = len(online_devices())
+    n = len(connected_devices())
     tail = (' · %d 台在线' % n) if n else ' · 无设备连接'
     return '● 运行中 · 端口 %d%s' % (PORT, tail)
 
@@ -1380,6 +1473,7 @@ def save_custom(commands):
             'enabled': bool(c.get('enabled', True)),
             'steps': steps[:8],
         })
+    clean = clean[:10]                    # 自定义指令最多 10 条，多余的丢弃
     CUSTOM_FILE.write_text(json.dumps({'commands': clean}, ensure_ascii=False, indent=2),
                            encoding='utf-8')
     load_custom(force=True)
@@ -2294,6 +2388,43 @@ WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 WS_STATS = {'conn': 0, 'msg': 0, 'open': 0}
 WS_LOCK = threading.Lock()
 
+# token -> Handler 集合：撤销设备/重置配对时主动踢下线用（否则旧连接挂着，
+# 手机界面还显示"已连接"，按什么都没反应，用户只会觉得"坏了"）
+_WS_LIVE = {}
+_WS_LIVE_LOCK = threading.Lock()
+
+
+def _ws_register(token, handler):
+    if token:
+        with _WS_LIVE_LOCK:
+            _WS_LIVE.setdefault(token, set()).add(handler)
+
+
+def _ws_unregister(token, handler):
+    if not token:
+        return
+    with _WS_LIVE_LOCK:
+        conns = _WS_LIVE.get(token)
+        if conns is not None:
+            conns.discard(handler)
+            if not conns:
+                _WS_LIVE.pop(token, None)
+
+
+def kick_token(token):
+    """立即断开某令牌名下的全部 WS 连接。"""
+    with _WS_LIVE_LOCK:
+        conns = _WS_LIVE.pop(token or '', None) or set()
+    for h in conns:
+        try:
+            h.connection.shutdown(socket.SHUT_RDWR)
+        except Exception:
+            pass
+        try:
+            h.connection.close()
+        except Exception:
+            pass
+
 
 def ws_accept_key(client_key):
     """按 RFC6455 算握手应答：base64(sha1(key + GUID))。"""
@@ -2418,7 +2549,7 @@ class _WsHeaders(object):
 
 
 # ---------- HTTP ----------
-POST_PATHS = ('/key', '/keys', '/move', '/text', '/scroll', '/pair/register')
+POST_PATHS = ('/key', '/keys', '/move', '/text', '/scroll', '/pair/register', '/announce')
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -2467,6 +2598,36 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self.reply_json(200, {'ok': True, 'token': tk,
                                   'name': payload.get('name') or '', 'msg': '配对成功'})
+            return
+
+        # 手机连上后报一次本机信息：配对设备刷新档案，未配对的进临时名单
+        if path == '/announce':
+            model = str(payload.get('model') or '')[:40]
+            os_name = str(payload.get('os') or '')[:40]
+            res = str(payload.get('res') or '')[:20]
+            ip = self.client_address[0] if self.client_address else ''
+            ok_auth, dev_id = auth_request(self, payload)
+            if dev_id not in ('', 'open', 'local'):
+                with _DEV_LOCK:
+                    for d in DEVICES.get('devices') or []:
+                        if d.get('id') == dev_id:
+                            if model:
+                                d['model'] = model
+                            if os_name:
+                                d['os'] = os_name
+                            if res:
+                                d['res'] = res
+                            if ip:
+                                d['ip'] = ip
+                            break
+                save_devices()
+            elif model and ip and ip not in ('127.0.0.1', '::1'):
+                with _OPEN_SEEN_LOCK:
+                    seen = OPEN_SEEN.get(ip) or {}
+                    seen.update({'model': model, 'os': os_name, 'res': res,
+                                 'last_ts': time.time()})
+                    OPEN_SEEN[ip] = seen
+            self.reply_json(200, {'ok': True})
             return
 
         # 配对令牌校验：局域网来的请求必须带 X-PC-Token（本机回环放行）
@@ -2712,6 +2873,9 @@ class Handler(BaseHTTPRequestHandler):
         if not token:
             token = self.headers.get('X-PC-Token', '') or ''
         ip = self.client_address[0] if self.client_address else ''
+        # 有令牌按令牌登记（踢下线用）；没令牌（开放模式）按 IP 登记，
+        # 让控制台「手机」卡把连着但没配对的手机也算成在线
+        _ws_register(token if token else 'open:' + ip, self)
         self.send_response(101, 'Switching Protocols')
         self.send_header('Upgrade', 'websocket')
         self.send_header('Connection', 'Upgrade')
@@ -2786,9 +2950,21 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:
             why = 'error: %s' % exc
         finally:
+            _ws_unregister(token if token else 'open:' + ip, self)
             with WS_LOCK:
                 WS_STATS['open'] = max(0, WS_STATS['open'] - 1)
             print('[ws] closed %s (%s)' % (ip, why), flush=True)
+
+    def _ws_drop(self):
+        """立即断开这条 WS 连接（令牌失效时用）。"""
+        try:
+            self.connection.shutdown(socket.SHUT_RDWR)
+        except Exception:
+            pass
+        try:
+            self.connection.close()
+        except Exception:
+            pass
 
     def _ws_handle(self, text, ip, token):
         """把一条 WS 消息还原成 path + payload，交给 HTTP 那套逻辑执行。
@@ -2824,12 +3000,25 @@ class Handler(BaseHTTPRequestHandler):
         with WS_LOCK:
             WS_STATS['msg'] += 1
         if path in ('/move', '/scroll'):
+            if ctx.result and ctx.result[0] == 401:
+                # 鉴权失败必须回包：触控盘平时不回包，不回的话手机端
+                # 永远感知不到自己被踢，界面还停在"已连接"
+                _, obj401 = ctx.result
+                if isinstance(obj401, dict):
+                    obj401 = dict(obj401)
+                    obj401['ts'] = int(time.time() * 1000)
+                ws_send_frame(self.wfile, json.dumps(obj401, ensure_ascii=False))
+                self._ws_drop()
             return                              # 高频事件：不回包
         code, obj = ctx.result if ctx.result else (200, {'ok': True})
         if isinstance(obj, dict):
             obj = dict(obj)
             obj['ts'] = int(time.time() * 1000)
         ws_send_frame(self.wfile, json.dumps(obj, ensure_ascii=False))
+        if code == 401:
+            # 令牌已失效（设备被撤销/票据重置）：立刻断开，别让手机端
+            # 抱着一条"看起来还活着"的死连接继续按无效指令
+            self._ws_drop()
 
     def do_GET(self):
         # WebSocket 握手就伪装成一次 GET，所以要先于所有 HTTP 路由判断
@@ -3068,7 +3257,8 @@ def _state_obj():
         'settings': dict(SETTINGS),
         'autostart': autostart_enabled(),
         'devices': len(DEVICES.get('devices') or []),
-        'online': len(online_devices()),
+        'online': sum(1 for p in phone_list() if p['online']),
+        'phones': phone_list(),
         'firewall': firewall_check(),
         'hotkeys': {'on': bool(SETTINGS.get('hotkeys')) and HOTKEY_STATE['ok'],
                     'q': HOTKEY_NAMES['qr'], 's': HOTKEY_NAMES['toggle'],
@@ -3131,11 +3321,37 @@ class AdminHandler(BaseHTTPRequestHandler):
                          'ip': d.get('ip'), 'created': d.get('created'),
                          'last': d.get('last'), 'count': d.get('count') or 0}
                         for d in DEVICES.get('devices') or []]
+                paired_ips = {d.get('ip') for d in DEVICES.get('devices') or [] if d.get('ip')}
             devs.sort(key=lambda x: x.get('count') or 0, reverse=True)
-            self.reply_json(200, {'ok': True, 'devices': devs,
+            # 未配对但连接过的设备（开放模式下的临时连接记录，按 IP 记）
+            with _WS_LIVE_LOCK:
+                live = set(_WS_LIVE.keys())
+            now = time.time()
+            opens = []
+            with _OPEN_SEEN_LOCK:
+                for oip, v in OPEN_SEEN.items():
+                    if oip in paired_ips:
+                        continue
+                    ts = float(v.get('last_ts') or 0)
+                    if not ts or now - ts > 86400:
+                        continue
+                    opens.append({'ip': oip,
+                                  'model': v.get('model') or '',
+                                  'os': v.get('os') or '',
+                                  'res': v.get('res') or '',
+                                  'last': datetime.fromtimestamp(ts).strftime('%H:%M:%S'),
+                                  'online': ('open:' + oip) in live or now - ts <= ONLINE_WINDOW})
+            opens.sort(key=lambda x: (x['online'], x['last']), reverse=True)
+            self.reply_json(200, {'ok': True, 'devices': devs, 'open': opens,
                                   'ticket': pair_ticket(),
                                   'require_token': bool(SETTINGS.get('require_token')),
                                   'max': MAX_DEVICES})
+            return
+        if path == '/api/open/forget':
+            oip = str(payload.get('ip') or '')
+            with _OPEN_SEEN_LOCK:
+                OPEN_SEEN.pop(oip, None)
+            self.reply_json(200, {'ok': True, 'msg': '已移除该连接记录'})
             return
         if path == '/api/export':
             kind = qs.get('type', ['voice'])[0]
@@ -3238,6 +3454,7 @@ class AdminHandler(BaseHTTPRequestHandler):
                     KEY_LOG.clear()
                 if kind in ('voice', 'all'):
                     VOICE_LOG.clear()
+            save_records()                # 清空同步写盘，重启后不会再冒出来
             self.reply_json(200, {'ok': True, 'msg': '记录已清空'})
             return
         if path == '/api/quit':
@@ -3293,19 +3510,90 @@ def admin_url():
     return 'http://127.0.0.1:%d' % _ADMIN_PORT
 
 
+_WIN_TITLE = 'PC 遥控器 · 控制台'      # 控制台页面 <title>，Edge 应用窗口同名
+
+
+def _find_console_hwnd():
+    """按窗口标题找已打开的控制台窗口（Edge --app 窗口标题 = 页面标题）。"""
+    try:
+        import ctypes
+        from ctypes import wintypes
+        user32 = ctypes.windll.user32
+        found = []
+        enum_proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+        def cb(hwnd, lparam):
+            if not user32.IsWindowVisible(hwnd):
+                return True
+            if user32.GetWindowTextLengthW(hwnd) != len(_WIN_TITLE):
+                return True
+            buf = ctypes.create_unicode_buffer(len(_WIN_TITLE) + 1)
+            user32.GetWindowTextW(hwnd, buf, len(_WIN_TITLE) + 1)
+            if buf.value == _WIN_TITLE:
+                found.append(hwnd)
+                return False
+            return True
+        user32.EnumWindows(enum_proc(cb), 0)
+        return found[0] if found else 0
+    except Exception:
+        return 0
+
+
 def show_admin_window():
-    """用 Edge 应用模式打开管理界面（独立窗口，无地址栏）。"""
+    """打开管理界面：已有窗口就聚焦（不再每次点托盘都新开一个），
+    没有才用 Edge 应用模式开（无地址栏），位置记住上次的。"""
+    hwnd = _find_console_hwnd()
+    if hwnd:
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            if user32.IsIconic(hwnd):
+                user32.ShowWindow(hwnd, 9)          # SW_RESTORE：最小化了就还原
+            user32.SetForegroundWindow(hwnd)        # 提到最前
+            return True
+        except Exception:
+            pass
     url = admin_url()
+    x = int(SETTINGS.get('win_x') or 140)
+    y = int(SETTINGS.get('win_y') or 60)
+    w = int(SETTINGS.get('win_w') or 1120)
+    h = int(SETTINGS.get('win_h') or 780)
     edge = _find_edge()
     if edge:
         try:
-            subprocess.Popen([edge, '--app=' + url, '--window-size=1120,780',
-                              '--window-position=140,60'])
+            subprocess.Popen([edge, '--app=' + url,
+                              '--window-size=%d,%d' % (w, h),
+                              '--window-position=%d,%d' % (x, y)])
             return True
         except Exception as exc:
             print('[admin] Edge 启动失败:', exc)
     _open_page(url)
     return True
+
+
+def _track_console_window():
+    """后台轮询记住控制台窗口的位置/大小：用户拖到哪，下次就在哪打开。"""
+    try:
+        import ctypes
+        from ctypes import wintypes
+        dwm = ctypes.windll.dwmapi
+        while True:
+            time.sleep(3)
+            hwnd = _find_console_hwnd()
+            if not hwnd:
+                continue
+            # DWM 扩展边界：Win11 下 GetWindowRect 会带上看不见的留白
+            rect = wintypes.RECT()
+            if dwm.DwmGetWindowAttribute(hwnd, 9, ctypes.byref(rect),
+                                         ctypes.sizeof(rect)) != 0:
+                continue
+            x, y = rect.left, rect.top
+            w, h = rect.right - rect.left, rect.bottom - rect.top
+            if (x, y, w, h) != (SETTINGS.get('win_x'), SETTINGS.get('win_y'),
+                                SETTINGS.get('win_w'), SETTINGS.get('win_h')):
+                save_settings({'win_x': x, 'win_y': y, 'win_w': w, 'win_h': h})
+    except Exception as exc:
+        print('[admin] 窗口位置记忆已停:', exc)
 
 
 # ---------- 扫码窗口（学 NeoShell：一屏看全二维码/地址/状态） ----------
@@ -3647,9 +3935,21 @@ def console_menu():
             os._exit(0)
 
 
+def _already_running():
+    """单实例守卫：Windows 命名互斥体，跨路径生效（C 盘/D 盘两份 exe 只能跑一个）。
+    进程退出时互斥体由系统自动释放，不需要手动清理。"""
+    try:
+        import ctypes
+        ctypes.windll.kernel32.CreateMutexW(None, False, 'PCRemote_SingleInstance')
+        return int(ctypes.windll.kernel32.GetLastError()) == 183   # ERROR_ALREADY_EXISTS
+    except Exception:
+        return False
+
+
 if __name__ == '__main__':
     load_settings()
     load_devices()
+    load_records()
     # --min / 设置里勾了「启动时隐藏控制台」：开机自启时不弹黑窗
     if '--min' in sys.argv or SETTINGS.get('start_hidden'):
         try:
@@ -3664,12 +3964,21 @@ if __name__ == '__main__':
         show_qr_window()
         time.sleep(2.5)
         sys.exit(0)
+    # 单实例：任何路径的第二份程序不再启动服务，直接把已运行实例的控制台弹出来
+    if _already_running():
+        import webbrowser
+        url = 'http://127.0.0.1:%d' % int(SETTINGS.get('admin_port') or 8766)
+        print('程序已在运行，打开已有实例的控制台: %s' % url)
+        webbrowser.open(url)
+        time.sleep(1.0)
+        sys.exit(0)
     load_neoshell()
     load_apps_cache()
     # 后台扫描开始菜单刷新应用列表（首次启动没有缓存时这里会补上）
     threading.Thread(target=scan_apps, daemon=True).start()
     print(service_start()[1])
     admin_start()
+    threading.Thread(target=_track_console_window, daemon=True).start()
     # 启动后 8 秒后台检查更新（settings.json 里 update_check=false 可关）
     threading.Thread(target=_update_worker, daemon=True).start()
     print('手机 App 目标地址: http://<电脑IP>:%d/key' % PORT)
@@ -3693,5 +4002,8 @@ if __name__ == '__main__':
     if '--admin' in sys.argv:
         # 双击 exe 带 --admin：起来后直接把控制台窗口弹出来
         threading.Timer(1.5, show_admin_window).start()
+    elif '--min' not in sys.argv and not SETTINGS.get('start_hidden'):
+        # 默认启动（非开机自启 --min）也弹控制台：程序是给人用的，起来就要看得见
+        threading.Timer(1.2, show_admin_window).start()
     if not run_tray():
         console_menu()

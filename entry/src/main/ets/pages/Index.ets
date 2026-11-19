@@ -35,6 +35,7 @@ interface CmdReply {
   say?: string;
   detail?: string;
   msg?: string;
+  need_pair?: boolean;
 }
 
 /** 统一卡片外观扩展 */
@@ -242,6 +243,7 @@ struct Index {
 
   /** 电脑端回应：只有语音指令会带 say 回话，其余只用来反馈失败原因 */
   private onNetText(text: string): void {
+    hilog.info(0x0000, 'RemoteUI', 'ws recv %{public}s', text.slice(0, 80));
     let reply: CmdReply | null = null;
     try {
       reply = JSON.parse(text) as CmdReply;
@@ -249,6 +251,15 @@ struct Index {
       return;
     }
     if (reply === null) {
+      return;
+    }
+    if (reply.need_pair === true) {
+      // 电脑端已撤销本机配对/令牌失效：立刻停掉重连循环、清掉死令牌，
+      // 引导用户重新扫码（不清的话会一直用废令牌撞 401，界面还显示已连接）
+      net.close();
+      this.token = '';
+      this.connState = '电脑端已取消本机配对 · 请到设置页重新扫码';
+      this.addLog('电脑端: ' + (reply.msg ?? '配对已被移除，请重新扫码'));
       return;
     }
     const say: string = reply.say ?? '';
@@ -347,7 +358,12 @@ struct Index {
     }).then((data: http.HttpResponse) => {
       this.pinging = false;
       if (data.responseCode === 200) {
-        this.connState = '已连接 · ' + host;
+        // 电脑在线 ≠ 本机已配对：没令牌（被撤销/未扫码）时如实提示，别谎报"已连接"
+        if (this.token.trim().length === 0) {
+          this.connState = '电脑已在线 · 本机未配对，去设置页扫码';
+        } else {
+          this.connState = '已连接 · ' + host;
+        }
       } else if (this.connState.startsWith('已连接')) {
         this.connState = '电脑异常 · HTTP ' + data.responseCode;
       }

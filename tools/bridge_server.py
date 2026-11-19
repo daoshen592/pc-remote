@@ -289,9 +289,12 @@ def pair_ticket():
 
 
 def register_device(ticket, name, model, ip):
-    """手机扫码后换 token。返回 (token, err)。"""
+    """手机扫码后换 token。返回 (token, err)。票据必须匹配，空票据一律拒绝，
+    否则局域网内任何设备不发 ticket 就能领到控制令牌。"""
     ticket = str(ticket or '').strip()
-    if ticket and ticket != pair_ticket():
+    if not ticket:
+        return '', '缺少配对票据，请扫描电脑端二维码完成配对'
+    if ticket != pair_ticket():
         return '', '配对票据不匹配（电脑端可能重置过配对，请重新扫码）'
     nm = (str(name or '').strip() or '未命名设备')[:24]
     token = _rand_hex()

@@ -15,6 +15,7 @@ import { SpeechAssistant } from '../common/SpeechAssistant';
 import { sendMagicPacket } from '../common/WakeOnLan';
 import { scanPairCode, registerDevice, PairInfo } from '../common/PcPair';
 import { net, NetState } from '../common/Net';
+import { saveStore } from '../common/Store';
 
 /** WebSocket 指令包：path 决定电脑端走哪个处理分支 */
 interface CmdMsg {
@@ -65,13 +66,13 @@ struct Index {
     (text: string) => { this.onSpeechResult(text); },
     (msg: string) => { this.onSpeechError(msg); }
   );
-  @StorageLink('remote.hostIp') @Watch('onEndpointChanged') hostIp: string = '192.168.1.168';
+  @StorageLink('remote.hostIp') @Watch('onEndpointChanged') hostIp: string = '';
   @StorageLink('remote.port') @Watch('onEndpointChanged') port: string = '8765';
   @StorageLink('remote.sensitivity') sensitivity: number = 1.4;
-  @StorageLink('remote.pcMac') pcMac: string = 'A0-AD-9F-18-C2-42';
+  @StorageLink('remote.pcMac') pcMac: string = '';
   @StorageLink('remote.pcList') pcListStr: string = '[]';
   @StorageLink('remote.token') token: string = '';
-  @State private connState: string = '默认 IP · 192.168.1.168';
+  @State private connState: string = '未配置电脑地址';
   @State private showPowerMenu: boolean = false;
   @State private showPcMenu: boolean = false;
   /** 键盘输入面板：直接往电脑打字 / 发功能键与组合键 */
@@ -79,6 +80,8 @@ struct Index {
   @State private kbText: string = '';
   /** 媒体卡片模式：false=媒体控制，true=演示控制（翻页笔） */
   @StorageLink('remote.presentMode') presentMode: boolean = false;
+  /** 设置页「使用说明」弹窗是否打开（跨组件共享，返回键要先关它） */
+  @StorageLink('ui.showHelp') showHelp: boolean = false;
   @State private currentTab: number = 0;
   private tabsController: TabsController = new TabsController();
   /** 手指在鼠标盘上操作时锁住外层滚动，保证整个界面不动 */
@@ -172,6 +175,43 @@ struct Index {
 
   onPageHide(): void {
     this.stopHealthCheck();
+  }
+
+  /**
+   * 系统返回键 / 返回手势：逐层关闭弹层，在主页面上再按一次直接退出应用。
+   * 默认行为只是把应用丢到后台（进程还活着、长连接还挂着），这里改成彻底退出。
+   */
+  onBackPress(): boolean {
+    if (this.showHelp) {
+      this.showHelp = false;
+      return true;
+    }
+    if (this.showKeyboard) {
+      this.showKeyboard = false;
+      return true;
+    }
+    if (this.showPowerMenu) {
+      this.showPowerMenu = false;
+      return true;
+    }
+    if (this.showPcMenu) {
+      this.showPcMenu = false;
+      return true;
+    }
+    if (this.currentTab !== 0) {
+      // 在设置/应用页时，返回先回遥控器主页
+      this.currentTab = 0;
+      this.tabsController.changeIndex(0);
+      return true;
+    }
+    // 主页面：先落盘配置，再主动结束 Ability（而不是留在后台）
+    saveStore();
+    const ctx: common.Context | undefined = this.getUIContext().getHostContext();
+    if (ctx !== undefined) {
+      hilog.info(0x0000, 'RemoteUI', 'back on home -> terminate app');
+      (ctx as common.UIAbilityContext).terminateSelf();
+    }
+    return true;
   }
 
   // ---------- WebSocket 长连接 ----------
@@ -274,6 +314,11 @@ struct Index {
 
   /** 切换电脑后立刻重拨长连接，不必等下一轮心跳 */
   private onEndpointChanged(): void {
+    // 空地址（新用户未配置）不去拨号，直接给出指引
+    if (this.hostIp.trim().length === 0) {
+      this.connState = '未配置电脑地址 · 去设置页扫码或手动填写';
+      return;
+    }
     this.connState = '检测中 · ' + this.hostIp.trim();
     net.connect(this.hostIp, this.port, this.token);
     this.pingOnce();
@@ -394,7 +439,8 @@ struct Index {
     const mediaByW: number = (wm - 50) / 5.56;
     const mediaByH: number = (hm - 10 - labelH * 2) / 2;
     const sysByW: number = (ws - 20) / 4.7;
-    const sysByH: number = hs - labelH;
+    // subLabel 小字只出现在返回/电源（标签下方 +10vp），横屏紧凑模式隐藏
+    const sysByH: number = hs - labelH - (labelH > 0 ? 10 : 0);
     // 上限只防异常值（正常手机上永远由上面四式决定），下限防容器还没量出来时算出 0
     return Math.max(22, Math.min(120, Math.min(Math.min(mediaByW, mediaByH), Math.min(sysByW, sysByH))));
   }
@@ -457,13 +503,16 @@ struct Index {
     return this.hostIp.trim();
   }
 
-  /** 状态胶囊：已连接 / 检测中 / 未连接 三态 */
+  /** 状态胶囊：已连接 / 检测中 / 未配置 / 未连接 */
   private connLabel(): string {
     if (this.connState.startsWith('已连接')) {
       return '已连接';
     }
     if (this.connState.startsWith('检测中')) {
       return '检测中';
+    }
+    if (this.hostIp.trim().length === 0) {
+      return '未配置';
     }
     return '未连接';
   }
@@ -475,6 +524,9 @@ struct Index {
     if (this.connState.startsWith('检测中')) {
       return Theme.ACCENT;
     }
+    if (this.hostIp.trim().length === 0) {
+      return Theme.SUB_TEXT;
+    }
     return Theme.VOICE;
   }
 
@@ -485,6 +537,9 @@ struct Index {
     if (this.connState.startsWith('检测中')) {
       return Theme.ACCENT_SOFT;
     }
+    if (this.hostIp.trim().length === 0) {
+      return Theme.KEY_SECONDARY;
+    }
     return Theme.VOICE_SOFT;
   }
 
@@ -494,6 +549,9 @@ struct Index {
     }
     if (this.connState.startsWith('检测中')) {
       return '#334A90FF';
+    }
+    if (this.hostIp.trim().length === 0) {
+      return '#338A97A8';
     }
     return '#66FF7A29';
   }
@@ -1032,6 +1090,7 @@ struct Index {
       VoiceKey({
         diameter: this.sysD(),
         showLabel: !this.landscapeCompact(),
+        subLabel: '按住说话',
         onDown: () => { this.onVoiceDown(); },
         onUp: () => { this.onVoiceUp(); }
       })
@@ -1182,15 +1241,15 @@ struct Index {
 
   /** 底部导航项：图标 + 文字，选中态高亮 */
   @Builder tabBarItem(icon: string, label: string, index: number) {
-    Column({ space: 3 }) {
+    Column({ space: 1 }) {
       AppIcon({
         name: icon,
-        iconSize: 22,
+        iconSize: 18,
         color: this.currentTab === index ? Theme.ACCENT : Theme.SUB_TEXT,
         lineWidth: 1.8
       })
       Text(label)
-        .fontSize(10)
+        .fontSize(9)
         .fontColor(this.currentTab === index ? Theme.ACCENT : Theme.SUB_TEXT)
     }
     .width('100%')
@@ -1233,7 +1292,7 @@ struct Index {
       }
       .width('100%')
       .height('100%')
-      .barHeight(56)
+      .barHeight(44)
       .barBackgroundColor(Theme.CARD)
       // 关闭左右滑动切换：避免操控盘手势被误判成切到另一个 Tab；只允许点底部标签切换
       .scrollable(false)
@@ -1253,6 +1312,28 @@ struct Index {
     }
     .width('100%')
     .height('100%')
+  }
+
+  /**
+   * 横屏系统卡标题：副标题在 builder 内部读状态。
+   * @Builder 的参数是按值传递的（首帧 sysBodyH 还没量出来，传进来的字符串永远是空且不再刷新），
+   * 所以「长按提示」不能当参数传，必须写成内部 if 才会跟着 landscapeCompact() 重新求值。
+   */
+  @Builder systemCardTitleLandscape() {
+    Column({ space: 2 }) {
+      Text('系统控制')
+        .fontSize(14)
+        .fontColor(Theme.TITLE)
+        .fontWeight(FontWeight.Bold)
+      if (this.landscapeCompact()) {
+        Text('长按返回=强退 · 长按电源=菜单')
+          .fontSize(9)
+          .fontColor(Theme.SUB_TEXT)
+          .maxLines(1)
+      }
+    }
+    .alignItems(HorizontalAlign.Start)
+    .width('100%')
   }
 
   // ---------- 卡片标题 ----------
@@ -1283,7 +1364,8 @@ struct Index {
 
       // 当前控制的电脑：与软件名同一行，点击弹出切换菜单；名字过长自动省略
       Row({ space: 3 }) {
-        Text('当前：' + this.currentPcName())
+        // 未配置电脑时不说"当前："（后面会空着），直接引导去设置页
+        Text(this.hostIp.trim().length === 0 ? '添加电脑 · 去设置' : '当前：' + this.currentPcName())
           .fontSize(10)
           .fontColor(Theme.ACCENT)
           .maxLines(1)
@@ -1297,7 +1379,12 @@ struct Index {
       .backgroundColor(Theme.ACCENT_SOFT)
       .borderRadius(11)
       .onClick(() => {
-        this.showPcMenu = true;
+        if (this.hostIp.trim().length === 0) {
+          // 还没配电脑：直接跳到设置页（扫码配对/手动填写都在那里）
+          this.tabsController.changeIndex(2);
+        } else {
+          this.showPcMenu = true;
+        }
       })
 
       // 连接状态胶囊
@@ -1396,7 +1483,8 @@ struct Index {
         .layoutWeight(1.45)
 
         Column({ space: 8 }) {
-          this.cardTitle('系统控制', '')
+          // 横屏紧凑时键下小字被隐藏，长按提示改由副标题承担
+          this.systemCardTitleLandscape()
           this.systemCardBody()
         }
         .cardStyle()
@@ -1412,21 +1500,35 @@ struct Index {
   // ---------- 鼠标操控盘（仅方形盘，无独立左右键） ----------
   @Builder buildMousePad() {
     Column() {
-      MousePad({
-        diameter: this.padSize(),
-        sensitivity: this.sensitivity,
-        onMove: (dx: number, dy: number) => { this.sendMove(dx, dy); },
-        onScroll: (dy: number) => { this.sendScroll(dy); },
-        onTap: () => { this.handleKey(Action.MOUSE_LEFT); },
-        onDoubleTap: () => { this.handleKey(Action.MOUSE_DOUBLE); },
-        onLongPress: () => { this.handleKey(Action.MOUSE_RIGHT); },
-        onRightClick: () => { this.handleKey(Action.MOUSE_RIGHT); },
-        onDragLock: (locked: boolean) => { this.sendAction(locked ? 'mouse_down' : 'mouse_up'); },
-        onInteracting: (active: boolean) => { this.padInteracting = active; }
-      })
+      // 盘面吃掉除说明行以外的全部高度；MousePad 内部按容器实测尺寸自适配
+      Column() {
+        MousePad({
+          diameter: this.padSize(),
+          sensitivity: this.sensitivity,
+          onMove: (dx: number, dy: number) => { this.sendMove(dx, dy); },
+          onScroll: (dy: number) => { this.sendScroll(dy); },
+          onTap: () => { this.handleKey(Action.MOUSE_LEFT); },
+          onDoubleTap: () => { this.handleKey(Action.MOUSE_DOUBLE); },
+          onLongPress: () => { this.handleKey(Action.MOUSE_RIGHT); },
+          onRightClick: () => { this.handleKey(Action.MOUSE_RIGHT); },
+          onDragLock: (locked: boolean) => { this.sendAction(locked ? 'mouse_down' : 'mouse_up'); },
+          onInteracting: (active: boolean) => { this.padInteracting = active; }
+        })
+      }
+      .width('100%')
+      .layoutWeight(1)
+
+      // 手势说明：一行小字贴在操控盘卡片最底部（盘面按剩余高度自适应缩小）
+      Text('滑动移动光标 · 轻点左键 · 双击双击 · 长按右键 · 双指滑滚轮')
+        .fontSize(9)
+        .fontColor(Theme.SUB_TEXT)
+        .maxLines(1)
+        .textAlign(TextAlign.Center)
+        .width('100%')
+        .margin({ top: 2 })
     }
     .width('100%')
-    .justifyContent(FlexAlign.Center)
+    .height('100%')
   }
 
   // ---------- 大屏日志面板 ----------
@@ -1663,11 +1765,12 @@ struct Index {
       action: Action.POWER,
       diameter: this.sysD(),
       glyphSize: this.sysD() * 0.46,
-      // 与「返回」完全同一套材质（用户要求两键颜色一致），警示作用交给长按行为本身
-      glyphColor: Theme.ACCENT,
-      bg: Theme.KEY_UNIFIED,
-      pressedBg: Theme.KEY_PRESSED,
+      // 淡红背景 + 红色图标：电源属警示类操作，与「返回」保持同一套警示材质
+      glyphColor: Theme.DANGER,
+      bg: Theme.DANGER_SOFT,
+      pressedBg: Theme.DANGER_SOFT_PRESSED,
       keyBorderColor: Theme.KEY_UNIFIED_BORDER,
+      subLabel: '长按菜单',
       // 横屏矮屏隐藏小字，把高度让给键径
       showLabel: !this.landscapeCompact(),
       supportLongPress: true,
@@ -1683,10 +1786,12 @@ struct Index {
       action: action,
       diameter: this.sysD(),
       glyphSize: this.sysD() * 0.44,
-      glyphColor: Theme.ACCENT,
-      bg: Theme.KEY_UNIFIED,
-      pressedBg: Theme.KEY_PRESSED,
+      // 淡红背景 + 红色图标：与「电源」同一套警示材质
+      glyphColor: Theme.DANGER,
+      bg: Theme.DANGER_SOFT,
+      pressedBg: Theme.DANGER_SOFT_PRESSED,
       keyBorderColor: Theme.KEY_UNIFIED_BORDER,
+      subLabel: action === Action.BACK ? '长按强退' : '',
       showLabel: !this.landscapeCompact(),
       // 返回键支持长按：短按=智能返回(自动选后退/关弹窗/退全屏)，长按=强制后退
       supportLongPress: action === Action.BACK,

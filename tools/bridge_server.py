@@ -45,6 +45,7 @@ from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = 8765
+DISCOVER_MAGIC = 'PCREMOTE_DISCOVER_V1'   # 手机端局域网发现广播的暗号
 DRY = '--dry' in sys.argv
 # PyInstaller 单文件 exe 运行时 __file__ 在临时解压目录，配置文件应放在 exe 旁边
 if getattr(sys, 'frozen', False):
@@ -82,7 +83,7 @@ DEFAULT_SETTINGS = {
 SETTINGS = dict(DEFAULT_SETTINGS)
 
 # ---------- 版本与更新检查 ----------
-APP_VERSION = '1.0.0'
+APP_VERSION = '1.1.1'
 UPDATE = {'checked': False, 'latest': '', 'url': '', 'notes': '',
           'newer': False, 'ts': 0, 'error': ''}
 UPDATE_LOCK = threading.Lock()
@@ -490,8 +491,10 @@ def firewall_add():
         'netsh advfirewall firewall delete rule name="PCRemoteServer" >nul 2>&1 & '
         'netsh advfirewall firewall delete rule name="%s" >nul 2>&1 & '
         'netsh advfirewall firewall add rule name="%s" dir=in action=allow '
-        'protocol=TCP localport=%d profile=any'
-    ) % (FW_RULE, FW_RULE, PORT)
+        'protocol=TCP localport=%d profile=any & '
+        'netsh advfirewall firewall add rule name="%s" dir=in action=allow '
+        'protocol=UDP localport=%d profile=any'
+    ) % (FW_RULE, FW_RULE, PORT, FW_RULE, PORT)
     try:
         import ctypes
         rc = ctypes.windll.shell32.ShellExecuteW(None, 'runas', 'cmd.exe',
@@ -2917,6 +2920,50 @@ def service_running():
     return _SERVER is not None
 
 
+def udp_discovery_loop():
+    """局域网自动发现（手机设置页「自动扫描」用）。
+
+    手机往 255.255.255.255:PORT 广播 DISCOVER_MAGIC，本进程回一份 JSON：
+    host/port/mac/name/version/need_token。host 用 connect 技巧取
+    「面对发起方的那块网卡」的 IP，双网卡机器也能回对地址。
+    UDP 与 TCP 可共用同一端口号（协议不同，互不冲突）。
+    """
+    try:
+        u = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        u.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        u.bind(('0.0.0.0', PORT))
+        u.settimeout(1.0)
+        print('[discover] UDP listening on %d (broadcast)' % PORT, flush=True)
+        magic = DISCOVER_MAGIC.encode()
+        while True:
+            try:
+                data, addr = u.recvfrom(256)
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            if magic not in data:
+                continue
+            try:
+                tmp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                tmp.connect((addr[0], 9))
+                face_ip = tmp.getsockname()[0]
+                tmp.close()
+            except Exception:
+                face_ip = _local_lan_ip()
+            info = {'ok': True, 'service': 'pc-remote',
+                    'host': face_ip, 'port': PORT,
+                    'mac': _primary_mac(), 'name': socket.gethostname(),
+                    'version': APP_VERSION,
+                    'need_token': bool(SETTINGS.get('require_token'))}
+            try:
+                u.sendto(json.dumps(info, ensure_ascii=False).encode('utf-8'), addr)
+            except Exception:
+                pass
+    except Exception as exc:
+        print('[discover] UDP server failed: %s' % exc, flush=True)
+
+
 def service_start():
     """启动 HTTP 服务（幂等）。返回 (ok, msg)。"""
     global _SERVER, _SERVER_THREAD
@@ -2930,6 +2977,8 @@ def service_start():
         _SERVER = srv
         _SERVER_THREAD = threading.Thread(target=srv.serve_forever, daemon=True)
         _SERVER_THREAD.start()
+        threading.Thread(target=udp_discovery_loop, daemon=True,
+                         name='udp-discover').start()
     print('[svc] started on %d' % PORT)
     return True, '服务已启动 · 端口 %d' % PORT
 

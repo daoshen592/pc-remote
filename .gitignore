@@ -32,3 +32,32 @@ oh_modules/
 node_modules/
 **/node_modules/
 hvigor/hvigor-config.json5.bak
+
+# 签名配置含证书密码，只入库 example
+build-profile.json5
+
+# 本机构建产物与调试脚本
+tools/dist_111/
+tools/build_111/
+tools/cast/
+tools/NeoShell源码参考/
+tools/ref/
+tools/__pycache__/
+tools/_*.py
+tools/uia_*.py
+tools/vision_probe.py
+tools/eval_gap.py
+tools/test_*.py
+tools/*.bak-*
+tools/dmr_latest.mp4
+tools/test.mp4
+
+# 界面调试临时文件
+cmp_*.png
+crop_*.png
+d5crop.png
+grid.png
+hold_label.png
+d.json
+l3.json
+l4.json

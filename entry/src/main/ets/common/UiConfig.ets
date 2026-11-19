@@ -40,6 +40,7 @@ export class Theme {
   static readonly DANGER: string = '#E34A4A';
   static readonly DANGER_PRESSED: string = '#C93A3A';
   static readonly DANGER_SOFT: string = '#FDECEC';
+  static readonly DANGER_SOFT_PRESSED: string = '#F8D7D7';
   // 兼容别名
   static readonly BODY: string = '#FFFFFF';
   static readonly BODY_BG: string = '#F2F5FA';

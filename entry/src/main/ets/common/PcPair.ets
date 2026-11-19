@@ -34,7 +34,13 @@ export function parsePairCode(raw: string): PairInfo | null {
       continue;
     }
     const key: string = part.substring(0, i);
-    const val: string = decodeURIComponent(part.substring(i + 1));
+    let val: string = part.substring(i + 1);
+    try {
+      // 二维码内容可能被截断产生非法 % 序列，解码失败就按原文用
+      val = decodeURIComponent(val);
+    } catch (e) {
+      // 保留原值
+    }
     if (key === 'host') {
       info.host = val;
     } else if (key === 'port') {

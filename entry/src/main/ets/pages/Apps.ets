@@ -25,7 +25,7 @@ const AVATAR_COLORS: string[] = ['#E8F0FF', '#FFF0E4', '#E6F6EC', '#FDECEC', '#F
  */
 @Component
 export struct Apps {
-  @StorageLink('remote.hostIp') hostIp: string = '192.168.1.168';
+  @StorageLink('remote.hostIp') hostIp: string = '';
   @StorageLink('remote.port') port: string = '8765';
   @StorageLink('remote.token') token: string = '';
   @State private apps: AppItem[] = [];

@@ -2,25 +2,28 @@ import { AbilityConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
+import { initStore, saveStore, storeSnapshot } from '../common/Store';
 
 const DOMAIN: number = 0x5A01;
 const TAG: string = 'RemoteUI';
 
 export default class EntryAbility extends UIAbility {
+  private lastSaved: string = '';
+  private timerId: number = -1;
+
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     hilog.info(DOMAIN, TAG, 'onCreate');
-    // 设置持久化：必须在 loadContent 之前注册，AppStorage 里这些键的值会落盘，
-    // 重启后自动恢复（IP/端口/MAC/灵敏度不再丢失）
-    PersistentStorage.persistProp('remote.hostIp', '192.168.1.168');
-    PersistentStorage.persistProp('remote.port', '8765');
-    PersistentStorage.persistProp('remote.sensitivity', 1.4);
-    PersistentStorage.persistProp('remote.pcMac', 'A0-AD-9F-18-C2-42');
-    // 多电脑记忆：JSON 数组 [{name,host,port,mac,token}]，扫码配对/手动保存都会写入
-    PersistentStorage.persistProp('remote.pcList', '[]');
-    // 当前电脑的设备令牌（扫码配对时由电脑端下发，之后每个请求都带上）
-    PersistentStorage.persistProp('remote.token', '');
-    // 媒体卡片模式：false=播放与音量，true=演示控制（翻页笔）；记住上次选择
-    PersistentStorage.persistProp('remote.presentMode', false);
+    // 配置落盘：preferences 同步读取，必须在 loadContent 之前，UI 首帧就能拿到上次的电脑列表
+    initStore(this.context);
+    this.lastSaved = storeSnapshot();
+    // 自动保存：每秒对比一次快照，有变化就写盘（任何页面改了配置都不会丢）
+    this.timerId = setInterval(() => {
+      const cur: string = storeSnapshot();
+      if (cur !== this.lastSaved) {
+        this.lastSaved = cur;
+        saveStore();
+      }
+    }, 1000);
     hilog.info(DOMAIN, TAG, 'onCreate restored');
   }
 
@@ -44,11 +47,22 @@ export default class EntryAbility extends UIAbility {
     });
   }
 
+  onBackground(): void {
+    // 切后台立刻落盘，防止被系统回收丢掉最后几秒的改动
+    saveStore();
+    this.lastSaved = storeSnapshot();
+  }
+
   onWindowStageDestroy(): void {
     hilog.info(DOMAIN, TAG, 'onWindowStageDestroy');
   }
 
   onDestroy(): void {
     hilog.info(DOMAIN, TAG, 'onDestroy');
+    if (this.timerId >= 0) {
+      clearInterval(this.timerId);
+      this.timerId = -1;
+    }
+    saveStore();
   }
 }

@@ -21,6 +21,8 @@ export struct RemoteKey {
   @Prop glyphSize: number = 24;
   @Prop labelSize: number = 11;
   @Prop showLabel: boolean = true;
+  /** 标签下的补充小字（如「长按强退」），只在 showLabel 时出现 */
+  @Prop subLabel: string = '';
   @Prop supportLongPress: boolean = false;
   @Prop keyBorderColor: string = Theme.KEY_BORDER;
   @Prop elevation: number = 3;
@@ -108,11 +110,22 @@ export struct RemoteKey {
       .height(this.diameter)
 
       if (this.showLabel && this.label.length > 0) {
-        Text(this.label)
-          .fontSize(this.labelSize)
-          .fontColor(Theme.SUB_TEXT)
-          .maxLines(1)
-          .textAlign(TextAlign.Center)
+        Column({ space: 1 }) {
+          Text(this.label)
+            .fontSize(this.labelSize)
+            .fontColor(Theme.SUB_TEXT)
+            .maxLines(1)
+            .textAlign(TextAlign.Center)
+          if (this.subLabel.length > 0) {
+            Text(this.subLabel)
+              .fontSize(8)
+              .fontColor(Theme.SUB_TEXT)
+              .opacity(0.75)
+              .maxLines(1)
+              .textAlign(TextAlign.Center)
+          }
+        }
+        .alignItems(HorizontalAlign.Center)
       }
     }
     // 列宽 = 键径 + 10（左右各 5）：媒体行 5 个键要挤进一屏，留 16 会白占宽度把键压小；

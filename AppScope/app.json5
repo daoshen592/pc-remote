@@ -1,9 +1,9 @@
 {
   "app": {
-    "bundleName": "com.hujiang.remote",
-    "vendor": "hujiang",
-    "versionCode": 1000000,
-    "versionName": "1.0.0",
+    "bundleName": "com.pc.remotecontrol",
+    "vendor": "daoshen592",
+    "versionCode": 1000002,
+    "versionName": "1.1.1",
     "icon": "$media:app_icon",
     "label": "$string:app_name"
   }
